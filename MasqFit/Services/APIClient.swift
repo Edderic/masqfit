@@ -303,6 +303,46 @@ class APIClient {
         }.resume()
     }
 
+    /// Trigger a lightweight mask recommender warmup call.
+    /// Best effort: endpoint returns quickly and preloads model runtime.
+    func warmupMaskRecommender(completion: @escaping (Result<Void, APIError>) -> Void) {
+        guard let url = URL(string: "\(baseURL)/mask_recommender/warmup.json") else {
+            completion(.failure(.invalidURL))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = Data("{}".utf8)
+
+        if let sessionToken = authService.sessionToken {
+            request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        urlSession.dataTask(with: request) { _, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(.failure(.networkError(error)))
+                    return
+                }
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    completion(.failure(.invalidResponse))
+                    return
+                }
+
+                guard (200...299).contains(httpResponse.statusCode) else {
+                    completion(.failure(.serverError(httpResponse.statusCode)))
+                    return
+                }
+
+                completion(.success(()))
+            }
+        }.resume()
+    }
+
     /// Create a new managed user
     func createManagedUser(completion: @escaping (Result<ManagedUser, APIError>) -> Void) {
         guard let url = URL(string: "\(baseURL)/managed_users") else {

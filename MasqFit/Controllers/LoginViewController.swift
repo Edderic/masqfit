@@ -3,6 +3,7 @@ import SafariServices
 
 /// View controller for user authentication
 class LoginViewController: UIViewController {
+    private static var hasWarmedUpRecommender = false
 
     // MARK: - UI Elements
     private var backgroundImageView: UIImageView!
@@ -53,6 +54,7 @@ class LoginViewController: UIViewController {
         super.viewDidLoad()
         setupUI()
         setupDelegates()
+        warmupRecommenderIfNeeded()
 
         // Check if user is already authenticated
         // Note: We don't automatically show the login form here anymore
@@ -61,6 +63,22 @@ class LoginViewController: UIViewController {
             // Just load managed users in the background
             // User can tap "Contribute Data" to see the authenticated state
             loadManagedUsers()
+        }
+    }
+
+    private func warmupRecommenderIfNeeded() {
+        guard !Self.hasWarmedUpRecommender else {
+            return
+        }
+        Self.hasWarmedUpRecommender = true
+        apiClient.warmupMaskRecommender { result in
+            switch result {
+            case .success:
+                print("Mask recommender warmup succeeded")
+            case .failure(let error):
+                // Warmup is best effort and should not block UX.
+                print("Mask recommender warmup failed: \(error.localizedDescription)")
+            }
         }
     }
     
