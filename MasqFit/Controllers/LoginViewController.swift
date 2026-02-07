@@ -987,12 +987,25 @@ class LoginViewController: UIViewController {
             switch result {
             case .success(let measurements):
                 let requiredKeys = ["nose_mm", "strap_mm", "top_cheek_mm", "mid_cheek_mm", "chin_mm"]
-                let missing = requiredKeys.contains { key in
+                let missingKeys = requiredKeys.filter { key in
                     guard let value = measurements[key] else { return true }
                     return value <= 0
                 }
-                if missing {
-                    self?.showError("Missing facial measurements for this user. Please add ARKit data first.")
+                if !missingKeys.isEmpty {
+                    let labelKeys = missingKeys.map { key -> String in
+                        switch key {
+                        case "nose_mm": return "noseMm"
+                        case "chin_mm": return "chinMm"
+                        case "top_cheek_mm": return "topCheekMm"
+                        case "mid_cheek_mm": return "midCheekMm"
+                        case "strap_mm": return "strapMm"
+                        default: return key
+                        }
+                    }
+                    self?.showError(
+                        "User is missing at least one facial measurement needed for mask recommendations: \n" +
+                        labelKeys.joined(separator: "\n")
+                    )
                     return
                 }
                 self?.fetchRecommendationsAndOpen(with: measurements)
