@@ -732,7 +732,11 @@ class LoginViewController: UIViewController {
                     }
                 case .failure(let error):
                     print("Failed to refresh managed users: \(error)")
-                    self?.showError("Failed to refresh: \(error.localizedDescription)")
+                    if self?.shouldForceReauth(for: error) == true {
+                        self?.forceReauthToLogin(message: "Session expired. Please sign in again.")
+                    } else {
+                        self?.showError("Failed to refresh: \(error.localizedDescription)")
+                    }
                 }
             }
         }
@@ -885,8 +889,12 @@ class LoginViewController: UIViewController {
                     self?.showAuthenticatedState()
                 case .failure(let error):
                     print("Failed to load managed users: \(error)")
-                    // Still show authenticated state even if loading managed users fails
-                    self?.showAuthenticatedState()
+                    if self?.shouldForceReauth(for: error) == true {
+                        self?.forceReauthToLogin(message: "Session expired. Please sign in again.")
+                    } else {
+                        // Still show authenticated state even if loading managed users fails
+                        self?.showAuthenticatedState()
+                    }
                 }
             }
         }
@@ -1257,6 +1265,24 @@ class LoginViewController: UIViewController {
 
 
     // MARK: - UI Helper Methods
+    private func shouldForceReauth(for error: AuthenticationError) -> Bool {
+        switch error {
+        case .validationError, .notAuthenticated:
+            return true
+        case .serverError(let code):
+            return code == 401 || code == 403
+        default:
+            return false
+        }
+    }
+
+    private func forceReauthToLogin(message: String) {
+        authService.invalidateLocalSession()
+        managedUsers = []
+        showLoginForm()
+        showError(message)
+    }
+
     private func setLoading(_ loading: Bool, isSignUp: Bool) {
         if isSignUp {
             if loading {
