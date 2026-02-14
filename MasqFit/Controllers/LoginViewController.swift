@@ -28,6 +28,8 @@ class LoginViewController: UIViewController {
     private var addHelpButtonsContainer: UIView!
     private var addUserButtonBelow: UIButton!
     private var helpButtonBelow: UIButton!
+    private var recommendationLoadingOverlay: UIView!
+    private var recommendationLoadingIndicator: UIActivityIndicatorView!
 
     // MARK: - Properties
     private let authService = AuthenticationService()
@@ -427,6 +429,30 @@ class LoginViewController: UIViewController {
         refreshManagedUsersButton.isHidden = true
 
         setupConstraints()
+        setupRecommendationLoadingOverlay()
+    }
+
+    private func setupRecommendationLoadingOverlay() {
+        recommendationLoadingOverlay = UIView()
+        recommendationLoadingOverlay.backgroundColor = UIColor(white: 0, alpha: 0.35)
+        recommendationLoadingOverlay.translatesAutoresizingMaskIntoConstraints = false
+        recommendationLoadingOverlay.isHidden = true
+        recommendationLoadingOverlay.isUserInteractionEnabled = true
+        view.addSubview(recommendationLoadingOverlay)
+
+        recommendationLoadingIndicator = UIActivityIndicatorView(style: .large)
+        recommendationLoadingIndicator.color = .white
+        recommendationLoadingIndicator.translatesAutoresizingMaskIntoConstraints = false
+        recommendationLoadingOverlay.addSubview(recommendationLoadingIndicator)
+
+        NSLayoutConstraint.activate([
+            recommendationLoadingOverlay.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            recommendationLoadingOverlay.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            recommendationLoadingOverlay.topAnchor.constraint(equalTo: view.topAnchor),
+            recommendationLoadingOverlay.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            recommendationLoadingIndicator.centerXAnchor.constraint(equalTo: recommendationLoadingOverlay.centerXAnchor),
+            recommendationLoadingIndicator.centerYAnchor.constraint(equalTo: recommendationLoadingOverlay.centerYAnchor)
+        ])
     }
 
     private func setupConstraints() {
@@ -1001,6 +1027,7 @@ class LoginViewController: UIViewController {
             showError("Invalid user ID")
             return
         }
+        setRecommendationLoading(true)
         apiClient.fetchAggregatedFacialMeasurements(for: managedId) { [weak self] result in
             switch result {
             case .success(let measurements):
@@ -1024,11 +1051,13 @@ class LoginViewController: UIViewController {
                         "User is missing at least one facial measurement needed for mask recommendations: \n" +
                         labelKeys.joined(separator: "\n")
                     )
+                    self?.setRecommendationLoading(false)
                     return
                 }
                 self?.fetchRecommendationsAndOpen(with: measurements)
             case .failure(let error):
                 self?.showError("Failed to load facial measurements: \(error.localizedDescription)")
+                self?.setRecommendationLoading(false)
             }
         }
     }
@@ -1050,6 +1079,9 @@ class LoginViewController: UIViewController {
             case .failure(let error):
                 presentingMeasurementVC?.setLoading(false)
                 self?.showError("Failed to start recommendations: \(error.localizedDescription)")
+                if presentingMeasurementVC == nil {
+                    self?.setRecommendationLoading(false)
+                }
             }
         }
     }
@@ -1079,6 +1111,9 @@ class LoginViewController: UIViewController {
                     let errorMessage = payload["error"] as? String ?? "Unknown error"
                     presentingMeasurementVC?.setLoading(false)
                     self?.showError("Failed to load recommendations: \(errorMessage)")
+                    if presentingMeasurementVC == nil {
+                        self?.setRecommendationLoading(false)
+                    }
                     return
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
@@ -1092,6 +1127,9 @@ class LoginViewController: UIViewController {
             case .failure(let error):
                 presentingMeasurementVC?.setLoading(false)
                 self?.showError("Failed to load recommendations: \(error.localizedDescription)")
+                if presentingMeasurementVC == nil {
+                    self?.setRecommendationLoading(false)
+                }
             }
         }
     }
@@ -1099,9 +1137,11 @@ class LoginViewController: UIViewController {
     private func openRecommendationsBrowser(with measurements: [String: Double]) {
         guard let url = buildRecommendationURL(with: measurements) else {
             showError("Failed to build recommendation URL")
+            setRecommendationLoading(false)
             return
         }
         let safariVC = SFSafariViewController(url: url)
+        safariVC.delegate = self
         safariVC.preferredControlTintColor = UIColor(red: 47/255, green: 128/255, blue: 237/255, alpha: 1.0)
         present(safariVC, animated: true)
     }
@@ -1242,9 +1282,21 @@ class LoginViewController: UIViewController {
     }
 
     private func showError(_ message: String) {
+        setRecommendationLoading(false)
         let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
+    }
+
+    private func setRecommendationLoading(_ loading: Bool) {
+        DispatchQueue.main.async {
+            self.recommendationLoadingOverlay.isHidden = !loading
+            if loading {
+                self.recommendationLoadingIndicator.startAnimating()
+            } else {
+                self.recommendationLoadingIndicator.stopAnimating()
+            }
+        }
     }
     
     private func showSuccess(_ message: String) {
@@ -1427,6 +1479,17 @@ extension LoginViewController: OfflineSyncManagerDelegate {
 
     func offlineSyncManager(_ manager: OfflineSyncManager, didEncounterError error: OfflineSyncError) {
         print("Offline sync error: \(error.localizedDescription)")
+    }
+}
+
+// MARK: - SFSafariViewControllerDelegate
+extension LoginViewController: SFSafariViewControllerDelegate {
+    func safariViewController(_ controller: SFSafariViewController, didCompleteInitialLoad didLoadSuccessfully: Bool) {
+        setRecommendationLoading(false)
+    }
+
+    func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+        setRecommendationLoading(false)
     }
 }
 
