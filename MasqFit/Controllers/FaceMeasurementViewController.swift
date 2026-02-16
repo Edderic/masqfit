@@ -33,6 +33,7 @@ class FaceMeasurementViewController: UIViewController {
     private var isMeasurementsVisible = false
     private var shouldRecommendWhenMeasurementCompletes = false
     private var startButtonHeightConstraint: NSLayoutConstraint?
+    private var exportButtonHeightConstraint: NSLayoutConstraint?
     private var managedUsers: [ManagedUser] = []
 
     // Authentication and API properties
@@ -151,6 +152,7 @@ class FaceMeasurementViewController: UIViewController {
         exportButton.layer.cornerRadius = 8
         exportButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .medium)
         exportButton.isEnabled = measurementMode == .recommend
+        exportButton.isHidden = measurementMode != .recommend
         exportButton.translatesAutoresizingMaskIntoConstraints = false
         exportButton.addTarget(self, action: #selector(saveButtonTapped(_:)), for: .touchUpInside)
         view.addSubview(exportButton)
@@ -245,7 +247,6 @@ class FaceMeasurementViewController: UIViewController {
             exportButton.bottomAnchor.constraint(equalTo: cancelButton.topAnchor, constant: -12),
             exportButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             exportButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            exportButton.heightAnchor.constraint(equalToConstant: 50),
 
             // Start button (above save)
             startButton.bottomAnchor.constraint(equalTo: exportButton.topAnchor, constant: -12),
@@ -271,6 +272,9 @@ class FaceMeasurementViewController: UIViewController {
             loadingIndicator.centerXAnchor.constraint(equalTo: loadingOverlay.centerXAnchor),
             loadingIndicator.centerYAnchor.constraint(equalTo: loadingOverlay.centerYAnchor)
         ])
+
+        exportButtonHeightConstraint = exportButton.heightAnchor.constraint(equalToConstant: measurementMode == .recommend ? 50 : 0)
+        exportButtonHeightConstraint?.isActive = true
 
         startButtonHeightConstraint = startButton.heightAnchor.constraint(equalToConstant: 50)
         startButtonHeightConstraint?.isActive = true
@@ -603,7 +607,6 @@ class FaceMeasurementViewController: UIViewController {
         if measurementMode == .contribute {
             startButton.setTitle("Start Measurement", for: .normal)
             startButton.backgroundColor = UIColor.systemBlue
-            exportButton.isEnabled = true
         }
         progressView.isHidden = true
 
@@ -628,6 +631,9 @@ class FaceMeasurementViewController: UIViewController {
                 shouldRecommendWhenMeasurementCompletes = false
                 handleRecommend()
             }
+        } else {
+            // Contribute flow: one button does measurement + save.
+            saveData()
         }
     }
 
@@ -937,6 +943,8 @@ class FaceMeasurementViewController: UIViewController {
             startButton.isHidden = true
             startButton.isEnabled = false
             startButtonHeightConstraint?.constant = 0
+            exportButton.isHidden = false
+            exportButtonHeightConstraint?.constant = 50
             exportButton.isEnabled = true
             exportButton.setTitle("Recommend", for: .normal)
             statusLabel.text = "Ready to recommend"
@@ -946,6 +954,8 @@ class FaceMeasurementViewController: UIViewController {
             startButton.isHidden = false
             startButton.isEnabled = true
             startButtonHeightConstraint?.constant = 50
+            exportButton.isHidden = true
+            exportButtonHeightConstraint?.constant = 0
             exportButton.isEnabled = false
             statusLabel.text = "Ready to start"
             instructionLabel.text = "Position your face close to the camera (less than 12 inches away) in portrait mode. Remove glasses, hats, or anything covering your face."
