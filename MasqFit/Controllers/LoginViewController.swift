@@ -83,10 +83,10 @@ class LoginViewController: UIViewController {
             }
         }
     }
-    
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        
+
         // Update navigation bar based on authentication state
         if isShowingLoginForm && authService.isAuthenticated {
             updateNavigationBarForRespiratoryUsers()
@@ -97,45 +97,45 @@ class LoginViewController: UIViewController {
             showMainMenu()
         }
     }
-    
+
     private func updateNavigationBarForRespiratoryUsers() {
         // Change title to "Respirator Users"
         title = "Respirator Users"
-        
+
         // Add hamburger menu button
         let hamburgerButton = UIBarButtonItem(image: UIImage(systemName: "line.3.horizontal"), style: .plain, target: self, action: #selector(hamburgerMenuTapped))
         hamburgerButton.tintColor = .white
-        
+
         navigationItem.rightBarButtonItems = [hamburgerButton]
     }
-    
+
     @objc private func hamburgerMenuTapped() {
         let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
-        
+
         // Get current user email
         let email = authService.currentUserEmail ?? "Unknown"
-        
+
         // Account option
         alert.addAction(UIAlertAction(title: "Account: \(email)", style: .default) { [weak self] _ in
             self?.showAccountViewController()
         })
-        
+
         // Logout option
         alert.addAction(UIAlertAction(title: "Logout", style: .default) { [weak self] _ in
             self?.logoutButtonTapped()
         })
-        
+
         // Cancel option
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
+
         // For iPad support
         if let popoverController = alert.popoverPresentationController {
             popoverController.barButtonItem = navigationItem.rightBarButtonItems?.first
         }
-        
+
         present(alert, animated: true)
     }
-    
+
     private func showAccountViewController() {
         let accountVC = AccountViewController(authService: authService)
         navigationController?.pushViewController(accountVC, animated: true)
@@ -146,7 +146,7 @@ class LoginViewController: UIViewController {
         title = "MasqFit"
         // Set background color using hex #2F80ED
         view.backgroundColor = UIColor(red: 47/255, green: 128/255, blue: 237/255, alpha: 1.0)
-        
+
         // Set navigation bar title text color to white
         navigationController?.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
         navigationController?.navigationBar.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
@@ -247,15 +247,15 @@ class LoginViewController: UIViewController {
         ]
         termsTextView.delegate = self
         termsTextView.translatesAutoresizingMaskIntoConstraints = false
-        
+
         // Set up the attributed text with links
         let termsText = "By signing up, you agree to our Terms of Service, Consent form, Disclaimer, and Privacy Policy."
         let attributedString = NSMutableAttributedString(string: termsText)
-        
+
         // Set default attributes
         attributedString.addAttribute(.font, value: UIFont.systemFont(ofSize: 14), range: NSRange(location: 0, length: termsText.count))
         attributedString.addAttribute(.foregroundColor, value: UIColor.white, range: NSRange(location: 0, length: termsText.count))
-        
+
         // Define links
         let links: [(text: String, url: String)] = [
             ("Terms of Service", "https://www.breathesafe.xyz/#/terms_of_service"),
@@ -263,7 +263,7 @@ class LoginViewController: UIViewController {
             ("Disclaimer", "https://www.breathesafe.xyz/#/disclaimer"),
             ("Privacy Policy", "https://www.breathesafe.xyz/#/privacy")
         ]
-        
+
         // Apply link styling
         for link in links {
             let range = (termsText as NSString).range(of: link.text)
@@ -273,7 +273,7 @@ class LoginViewController: UIViewController {
                 attributedString.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
             }
         }
-        
+
         termsTextView.attributedText = attributedString
         contentView.addSubview(termsTextView)
 
@@ -351,15 +351,15 @@ class LoginViewController: UIViewController {
         emptyManagedUsersTextView.delegate = self
         emptyManagedUsersTextView.translatesAutoresizingMaskIntoConstraints = false
         emptyManagedUsersTextView.isHidden = true
-        
+
         // Set up the attributed text with link
         let emptyMessage = "The list of Respirator Users that you manage is empty. Please go on the Respirator Users page to add at least one user (e.g. yourself)."
         let attributedMessage = NSMutableAttributedString(string: emptyMessage)
-        
+
         // Set default attributes
         attributedMessage.addAttribute(.font, value: UIFont.systemFont(ofSize: 16), range: NSRange(location: 0, length: emptyMessage.count))
         attributedMessage.addAttribute(.foregroundColor, value: UIColor.white, range: NSRange(location: 0, length: emptyMessage.count))
-        
+
         // Add link to "Respirator Users page"
         let linkText = "Respirator Users page"
         let linkRange = (emptyMessage as NSString).range(of: linkText)
@@ -368,7 +368,7 @@ class LoginViewController: UIViewController {
             attributedMessage.addAttribute(.foregroundColor, value: UIColor.white, range: linkRange)
             attributedMessage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: linkRange)
         }
-        
+
         emptyManagedUsersTextView.attributedText = attributedMessage
         contentView.addSubview(emptyManagedUsersTextView)
 
@@ -395,7 +395,7 @@ class LoginViewController: UIViewController {
         addHelpButtonsContainer.translatesAutoresizingMaskIntoConstraints = false
         addHelpButtonsContainer.isHidden = true
         contentView.addSubview(addHelpButtonsContainer)
-        
+
         // Create + button (below title)
         addUserButtonBelow = UIButton(type: .system)
         addUserButtonBelow.setTitle("+ Add Respirator User", for: .normal)
@@ -406,7 +406,7 @@ class LoginViewController: UIViewController {
         addUserButtonBelow.translatesAutoresizingMaskIntoConstraints = false
         addUserButtonBelow.addTarget(self, action: #selector(addUserButtonTapped), for: .touchUpInside)
         addHelpButtonsContainer.addSubview(addUserButtonBelow)
-        
+
         // Create Help button (below title)
         helpButtonBelow = UIButton(type: .system)
         helpButtonBelow.setTitle("? Help", for: .normal)
@@ -458,7 +458,7 @@ class LoginViewController: UIViewController {
     private func setupConstraints() {
         // Create the bottom constraint for contribute button (used when main menu is shown)
         contributeButtonBottomConstraint = contributeDataButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20)
-        
+
         NSLayoutConstraint.activate([
             // Background image view - fills entire screen
             backgroundImageView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -572,13 +572,13 @@ class LoginViewController: UIViewController {
             addHelpButtonsContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
             addHelpButtonsContainer.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
             addHelpButtonsContainer.heightAnchor.constraint(equalToConstant: 44),
-            
+
             // Add user button (below title)
             addUserButtonBelow.leadingAnchor.constraint(equalTo: addHelpButtonsContainer.leadingAnchor),
             addUserButtonBelow.topAnchor.constraint(equalTo: addHelpButtonsContainer.topAnchor),
             addUserButtonBelow.bottomAnchor.constraint(equalTo: addHelpButtonsContainer.bottomAnchor),
             addUserButtonBelow.trailingAnchor.constraint(equalTo: addHelpButtonsContainer.centerXAnchor, constant: -8),
-            
+
             // Help button (below title)
             helpButtonBelow.leadingAnchor.constraint(equalTo: addHelpButtonsContainer.centerXAnchor, constant: 8),
             helpButtonBelow.topAnchor.constraint(equalTo: addHelpButtonsContainer.topAnchor),
@@ -593,13 +593,13 @@ class LoginViewController: UIViewController {
         offlineSyncManager.delegate = self
         emailTextField.delegate = self
         passwordTextField.delegate = self
-        
+
         // Add tap gesture to dismiss keyboard when tapping outside text fields
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
         tapGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(tapGesture)
     }
-    
+
     @objc private func dismissKeyboard() {
         view.endEditing(true)
     }
@@ -631,7 +631,7 @@ class LoginViewController: UIViewController {
     @objc private func termsCheckboxTapped() {
         isTermsAgreed.toggle()
         termsCheckbox.isSelected = isTermsAgreed
-        
+
         // Enable/disable sign up button based on checkbox state
         signUpButton.isEnabled = isTermsAgreed
         signUpButton.alpha = isTermsAgreed ? 1.0 : 0.5
@@ -640,7 +640,7 @@ class LoginViewController: UIViewController {
     @objc private func loginButtonTapped(_ sender: UIButton) {
         // Dismiss keyboard when login button is tapped
         view.endEditing(true)
-        
+
         guard let email = emailTextField.text, !email.isEmpty,
               let password = passwordTextField.text, !password.isEmpty else {
             showError("Please enter both email and password")
@@ -653,7 +653,7 @@ class LoginViewController: UIViewController {
     @objc private func signUpButtonTapped(_ sender: UIButton) {
         // Dismiss keyboard when sign up button is tapped
         view.endEditing(true)
-        
+
         guard let email = emailTextField.text, !email.isEmpty,
               let password = passwordTextField.text, !password.isEmpty else {
             showError("Please enter both email and password")
@@ -674,42 +674,41 @@ class LoginViewController: UIViewController {
         navController.modalPresentationStyle = .fullScreen
         present(navController, animated: true)
     }
-    
+
     @objc private func helpButtonTapped() {
         let alert = UIAlertController(title: "Overview Tab Help", message: nil, preferredStyle: .alert)
-        
+
         let message = """
-        This page is meant for people who are trying to contribute data to Breathesafe for research.
-        
+
         Add button:
-        Click on this button to create a new Respirator user. You will be asked for name, demographics, and facial measurement information.
-        
+        Creates a new Respirator user. You will be asked for name, demographics, and facial measurement information.
+
         Table columns:
-        
+
         Name: The first and last name of the Respirator user.
-        
+
         Demog: Demographics completion percentage (race/ethnicity, gender, year of birth).
-        
+
         Facial: Checkmark if facial measurements are complete, X if incomplete.
-        
+
         Masks: Number of unique masks that have been fit tested for this user.
-        
+
         Actions button:
-        
+
         The "Actions" button lists options, such as modifying existing demographic data and facial measurements, and adding a fit test for a particular user.
         """
-        
+
         alert.message = message
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
     }
-    
+
     @objc private func refreshManagedUsersButtonTapped() {
         // Show loading state
         refreshActivityIndicator.startAnimating()
         refreshManagedUsersButton.setTitle("", for: .normal)
         refreshManagedUsersButton.isEnabled = false
-        
+
         // Reload managed users
         authService.loadManagedUsers { [weak self] result in
             DispatchQueue.main.async {
@@ -717,13 +716,13 @@ class LoginViewController: UIViewController {
                 self?.refreshActivityIndicator.stopAnimating()
                 self?.refreshManagedUsersButton.setTitle("Refresh Respirator Users", for: .normal)
                 self?.refreshManagedUsersButton.isEnabled = true
-                
+
                 switch result {
                 case .success(let users):
                     print("Successfully refreshed \(users.count) managed users")
                     self?.managedUsers = users
                     self?.updateManagedUsersButton()
-                    
+
                     // Show appropriate message
                     if users.isEmpty {
                         self?.showConfirmation("List refreshed - still empty. Please add users on the Respirator Users page.")
@@ -752,16 +751,16 @@ class LoginViewController: UIViewController {
                 case .failure(let error):
                     print("Logout error: \(error)")
                 }
-                
+
                 // Clear managed users
                 self?.managedUsers = []
-                
+
                 // Return to main menu
                 self?.showMainMenu()
             }
         }
     }
-    
+
 
     // MARK: - Authentication Methods
     private func login(email: String, password: String) {
@@ -873,9 +872,9 @@ class LoginViewController: UIViewController {
         // Clear old managed users first
         managedUsers = []
         managedUsersTableView.isHidden = true
-        
+
         print("Loading managed users for current user: \(authService.currentUser?.email ?? "unknown") (ID: \(authService.currentUser?.id ?? -1))")
-        
+
         authService.loadManagedUsers { [weak self] result in
             DispatchQueue.main.async {
                 switch result {
@@ -902,14 +901,14 @@ class LoginViewController: UIViewController {
 
     private func updateManagedUsersButton() {
         print("updateManagedUsersButton called with \(managedUsers.count) managed users")
-        
+
         // Always show the table view when authenticated
         managedUsersTableView.isHidden = false
         managedUsersTableView.reloadData()
-        
+
         // Hide the empty message text view (we'll show "No users found" in the table instead)
         emptyManagedUsersTextView.isHidden = true
-        
+
         // Always show the refresh button when authenticated
         print("Showing refresh button")
         refreshManagedUsersButton.isHidden = false
@@ -924,16 +923,16 @@ class LoginViewController: UIViewController {
         loginButton.isHidden = true
         signUpButton.isHidden = true
         errorLabel.isHidden = true
-        
+
         // Show add/help buttons container
         addHelpButtonsContainer.isHidden = false
-        
+
         // Update navigation bar to show hamburger menu
         updateNavigationBarForRespiratoryUsers()
-        
+
         // Update managed users button visibility based on current state
         updateManagedUsersButton()
-        
+
         // Keep the "Fit testers" text and back button visible
     }
 
@@ -961,13 +960,13 @@ class LoginViewController: UIViewController {
                 self?.showError("Invalid user ID")
                 return
             }
-            
+
             let urlString = "https://www.breathesafe.xyz/#/fit_tests/new?userId=\(managedId)&tabToShow=Mask"
             guard let url = URL(string: urlString) else {
                 self?.showError("Invalid URL")
                 return
             }
-            
+
             let safariVC = SFSafariViewController(url: url)
             safariVC.preferredControlTintColor = UIColor(red: 47/255, green: 128/255, blue: 237/255, alpha: 1.0)
             self?.present(safariVC, animated: true)
@@ -985,13 +984,13 @@ class LoginViewController: UIViewController {
                     self?.showError("Invalid user ID")
                     return
                 }
-                
+
                 let urlString = "https://www.breathesafe.xyz/#/fit_tests?managedId=\(managedId)"
                 guard let url = URL(string: urlString) else {
                     self?.showError("Invalid URL")
                     return
                 }
-                
+
                 let safariVC = SFSafariViewController(url: url)
                 safariVC.preferredControlTintColor = UIColor(red: 47/255, green: 128/255, blue: 237/255, alpha: 1.0)
                 self?.present(safariVC, animated: true)
@@ -1174,7 +1173,7 @@ class LoginViewController: UIViewController {
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
     }
-    
+
     private func openAddEditUser(for user: ManagedUser, section: AddEditUserViewController.Section) {
         let addEditVC = AddEditUserViewController(
             authService: authService,
@@ -1186,46 +1185,46 @@ class LoginViewController: UIViewController {
         navController.modalPresentationStyle = .fullScreen
         present(navController, animated: true)
     }
-    
+
     private func confirmDeleteUser(_ user: ManagedUser) {
         let alert = UIAlertController(
             title: "Delete User",
             message: "Are you sure you want to delete \(user.displayName)? This action cannot be undone.",
             preferredStyle: .alert
         )
-        
+
         alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
             self?.deleteUser(user)
         })
-        
+
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
+
         present(alert, animated: true)
     }
-    
+
     private func deleteUser(_ user: ManagedUser) {
         guard let managedUserId = user.id else {
             showError("Invalid user ID")
             return
         }
-        
+
         guard let url = URL(string: "https://www.breathesafe.xyz/managed_users/\(managedUserId)") else {
             showError("Invalid URL")
             return
         }
-        
+
         // Get CSRF token first
         authService.getCSRFToken { [weak self] token in
             guard let self = self, let token = token else {
                 self?.showError("Failed to get CSRF token")
                 return
             }
-            
+
             var request = URLRequest(url: url)
             request.httpMethod = "DELETE"
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             request.setValue(token, forHTTPHeaderField: "X-CSRF-Token")
-            
+
             // Get session cookies
             if let cookies = HTTPCookieStorage.shared.cookies(for: url) {
                 let cookieHeader = HTTPCookie.requestHeaderFields(with: cookies)
@@ -1233,21 +1232,21 @@ class LoginViewController: UIViewController {
                     request.setValue(value, forHTTPHeaderField: key)
                 }
             }
-            
+
             URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
                 DispatchQueue.main.async {
                     guard let self = self else { return }
-                    
+
                     if let error = error {
                         self.showError("Failed to delete user: \(error.localizedDescription)")
                         return
                     }
-                    
+
                     guard let httpResponse = response as? HTTPURLResponse else {
                         self.showError("Invalid response")
                         return
                     }
-                    
+
                     if httpResponse.statusCode == 200 || httpResponse.statusCode == 204 {
                         // Success - refresh the list
                         self.showSuccess("Successfully deleted \(user.displayName)")
@@ -1324,7 +1323,7 @@ class LoginViewController: UIViewController {
             }
         }
     }
-    
+
     private func showSuccess(_ message: String) {
         let alert = UIAlertController(title: "Success", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -1343,18 +1342,18 @@ class LoginViewController: UIViewController {
 
     private func showLoginForm() {
         isShowingLoginForm = true
-        
+
         // Hide background image to show solid #2F80ED color
         backgroundImageView.isHidden = true
-        
+
         // Deactivate contribute button bottom constraint
         contributeButtonBottomConstraint.isActive = false
-        
+
         // Hide main menu buttons
         aboutButton.isHidden = true
         recommendMasksButton.isHidden = true
         contributeDataButton.isHidden = true
-        
+
         // Check if already authenticated - if so, show authenticated state
         // Otherwise show the login/signup form
         if authService.isAuthenticated {
@@ -1365,10 +1364,10 @@ class LoginViewController: UIViewController {
             termsTextView.isHidden = true
             loginButton.isHidden = true
             signUpButton.isHidden = true
-            
+
             // Update navigation bar for Respirator Users view
             updateNavigationBarForRespiratoryUsers()
-            
+
             // Load managed users for the currently authenticated user
             loadManagedUsers()
         } else {
@@ -1378,7 +1377,7 @@ class LoginViewController: UIViewController {
             emptyManagedUsersTextView.isHidden = true
             refreshManagedUsersButton.isHidden = true
             addHelpButtonsContainer.isHidden = true
-            
+
             // Show login form
             emailTextField.isHidden = false
             passwordTextField.isHidden = false
@@ -1386,7 +1385,7 @@ class LoginViewController: UIViewController {
             termsTextView.isHidden = false
             loginButton.isHidden = false
             signUpButton.isHidden = false
-            
+
             // Add back button to navigation bar
             navigationItem.leftBarButtonItem = UIBarButtonItem(
                 title: "Back",
@@ -1395,7 +1394,7 @@ class LoginViewController: UIViewController {
                 action: #selector(backToMainMenuTapped)
             )
         }
-        
+
         // Animate the transition
         UIView.animate(withDuration: 0.3) {
             self.view.layoutIfNeeded()
@@ -1411,23 +1410,23 @@ class LoginViewController: UIViewController {
 
     private func showMainMenu() {
         isShowingLoginForm = false
-        
+
         // Reset navigation bar to default state
         title = "MasqFit"
         navigationItem.leftBarButtonItem = nil
         navigationItem.rightBarButtonItems = nil
-        
+
         // Show background image again
         backgroundImageView.isHidden = false
-        
+
         // Activate contribute button bottom constraint
         contributeButtonBottomConstraint.isActive = true
-        
+
         // Show main menu buttons
         aboutButton.isHidden = false
         recommendMasksButton.isHidden = false
         contributeDataButton.isHidden = false
-        
+
         // Hide login form and authenticated state
         emailTextField.isHidden = true
         passwordTextField.isHidden = true
@@ -1440,7 +1439,7 @@ class LoginViewController: UIViewController {
         emptyManagedUsersTextView.isHidden = true
         refreshManagedUsersButton.isHidden = true
         addHelpButtonsContainer.isHidden = true
-        
+
         // Clear fields
         emailTextField.text = ""
         passwordTextField.text = ""
@@ -1448,10 +1447,10 @@ class LoginViewController: UIViewController {
         termsCheckbox.isSelected = false
         signUpButton.isEnabled = false
         signUpButton.alpha = 0.5
-        
+
         // Dismiss keyboard
         view.endEditing(true)
-        
+
         // Animate the transition
         UIView.animate(withDuration: 0.3) {
             self.view.layoutIfNeeded()
@@ -1550,7 +1549,7 @@ extension LoginViewController: UITableViewDelegate, UITableViewDataSource {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return managedUsers.isEmpty ? 1 : managedUsers.count
     }
-    
+
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         if managedUsers.isEmpty {
             // Show "No users found" message using a basic cell
@@ -1562,93 +1561,93 @@ extension LoginViewController: UITableViewDelegate, UITableViewDataSource {
             cell.selectionStyle = .none
             return cell
         }
-        
+
         guard let cell = tableView.dequeueReusableCell(withIdentifier: ManagedUserTableViewCell.identifier, for: indexPath) as? ManagedUserTableViewCell else {
             return UITableViewCell()
         }
-        
+
         let user = managedUsers[indexPath.row]
         cell.configure(with: user)
         cell.onActionsTapped = { [weak self] in
             self?.showActionsForUser(user, sourceView: cell)
         }
-        
+
         return cell
     }
-    
+
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         return 50
     }
-    
+
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let headerView = UIView()
         headerView.backgroundColor = UIColor(red: 47/255, green: 128/255, blue: 237/255, alpha: 1.0)
-        
+
         let nameLabel = UILabel()
         nameLabel.text = "Name"
         nameLabel.font = UIFont.systemFont(ofSize: 14, weight: .bold)
         nameLabel.textColor = .white
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        
+
         let demogLabel = UILabel()
         demogLabel.text = "Demog"
         demogLabel.font = UIFont.systemFont(ofSize: 14, weight: .bold)
         demogLabel.textColor = .white
         demogLabel.textAlignment = .center
         demogLabel.translatesAutoresizingMaskIntoConstraints = false
-        
+
         let facialLabel = UILabel()
         facialLabel.text = "Facial"
         facialLabel.font = UIFont.systemFont(ofSize: 14, weight: .bold)
         facialLabel.textColor = .white
         facialLabel.textAlignment = .center
         facialLabel.translatesAutoresizingMaskIntoConstraints = false
-        
+
         let masksLabel = UILabel()
         masksLabel.text = "Masks"
         masksLabel.font = UIFont.systemFont(ofSize: 14, weight: .bold)
         masksLabel.textColor = .white
         masksLabel.textAlignment = .center
         masksLabel.translatesAutoresizingMaskIntoConstraints = false
-        
+
         let actionsLabel = UILabel()
         actionsLabel.text = "Actions"
         actionsLabel.font = UIFont.systemFont(ofSize: 14, weight: .bold)
         actionsLabel.textColor = .white
         actionsLabel.textAlignment = .center
         actionsLabel.translatesAutoresizingMaskIntoConstraints = false
-        
+
         headerView.addSubview(nameLabel)
         headerView.addSubview(demogLabel)
         headerView.addSubview(facialLabel)
         headerView.addSubview(masksLabel)
         headerView.addSubview(actionsLabel)
-        
+
         NSLayoutConstraint.activate([
             nameLabel.leadingAnchor.constraint(equalTo: headerView.leadingAnchor, constant: 12),
             nameLabel.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
             nameLabel.widthAnchor.constraint(equalTo: headerView.widthAnchor, multiplier: 0.25),
-            
+
             demogLabel.leadingAnchor.constraint(equalTo: nameLabel.trailingAnchor, constant: 8),
             demogLabel.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
             demogLabel.widthAnchor.constraint(equalTo: headerView.widthAnchor, multiplier: 0.15),
-            
+
             facialLabel.leadingAnchor.constraint(equalTo: demogLabel.trailingAnchor, constant: 8),
             facialLabel.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
             facialLabel.widthAnchor.constraint(equalTo: headerView.widthAnchor, multiplier: 0.15),
-            
+
             masksLabel.leadingAnchor.constraint(equalTo: facialLabel.trailingAnchor, constant: 8),
             masksLabel.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
             masksLabel.widthAnchor.constraint(equalTo: headerView.widthAnchor, multiplier: 0.15),
-            
+
             actionsLabel.leadingAnchor.constraint(equalTo: masksLabel.trailingAnchor, constant: 8),
             actionsLabel.trailingAnchor.constraint(equalTo: headerView.trailingAnchor, constant: -12),
             actionsLabel.centerYAnchor.constraint(equalTo: headerView.centerYAnchor)
         ])
-        
+
         return headerView
     }
-    
+
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
         return 30
     }
