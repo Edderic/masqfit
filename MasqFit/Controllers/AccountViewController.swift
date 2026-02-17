@@ -393,7 +393,7 @@ class AccountViewController: UIViewController {
                 navigationController.popToRootViewController(animated: true)
                 
                 // Trigger the main menu display on LoginViewController
-                if let loginVC = navigationController.viewControllers.first as? LoginViewController {
+                if navigationController.viewControllers.first is LoginViewController {
                     // The LoginViewController's viewWillAppear will handle showing the main menu
                 }
             }
