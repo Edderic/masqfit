@@ -167,3 +167,39 @@ enum MFTCImport {
         throw ImportError.invalid
     }
 }
+
+/// Group identical shared text for one privacy review, while preserving every test attempt.
+struct MFTCReviewGroup {
+    var records: [MFTCRecord]
+    var mask: String
+    var protocolName: String
+
+    static func groups(_ records: [MFTCRecord]) -> [MFTCReviewGroup] {
+        var groups: [MFTCReviewGroup] = []
+        for record in records {
+            if let index = groups.firstIndex(where: { $0.mask == record.test.mask && $0.protocolName == record.test.protocolName }) {
+                groups[index].records.append(record)
+            } else {
+                groups.append(MFTCReviewGroup(records: [record], mask: record.test.mask, protocolName: record.test.protocolName))
+            }
+        }
+        return groups
+    }
+    var hasValidText: Bool {
+        let fields = [mask, protocolName]
+        let normalized = mask.precomposedStringWithCompatibilityMapping.lowercased()
+            .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        return fields.allSatisfy { $0.unicodeScalars.count <= 200 && $0.rangeOfCharacter(from: .controlCharacters) == nil }
+            && normalized.unicodeScalars.count <= 200
+    }
+    func reviewedRecords() -> [MFTCRecord] {
+        records.map { record in
+            var test = record.test
+            test.mask = mask.trimmingCharacters(in: .whitespacesAndNewlines)
+            test.protocolName = protocolName.trimmingCharacters(in: .whitespacesAndNewlines)
+            test.maskID = nil
+            test.proposeMask = !test.mask.isEmpty
+            return MFTCRecord(sourceKey: record.sourceKey, participant: "", test: test)
+        }
+    }
+}

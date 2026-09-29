@@ -123,3 +123,19 @@ Reused submissions include optional `measurement_source_contribution_id` with th
 The latest original is selected by original consent/submission time, then database ID; reused submissions and older offline scans delivered later do not advance the original scan date. This is a submission date, not a claim about the exact capture time. No maximum age is enforced; participants can scan again when measurements change.
 
 Deploy migration `20260929010000_add_measurement_source_to_anonymous_contributions.rb` and the backend lookup/validation before releasing this app update. Device checks: recover a code on a later visit; confirm default reuse; scan again; cancel a rescan; switch participants during lookup; test no history, unavailable network, offline queue retries, and consent cancellation.
+
+## Community-event batch imports and admin matching
+
+The phone no longer asks contributors to match each imported fit test to the mask catalog. After scanning/importing QR codes:
+
+1. Select the current participant’s tests from locally displayed MFTC participant groups. Select all within a group or toggle individual tests; nothing is preselected. The total submission limit remains 100 tests.
+2. Review distinct mask/protocol label pairs on one screen. Edits apply to every selected test with that exact pair of labels. Confirm that identifying details have been removed. Optionally choose N95 / N99 / Unknown for the entire batch; individual tests remain editable after adding.
+3. Add the batch, review the contribution, and explicitly consent to submit. Adding or canceling a batch makes no network request. Raw participant labels are dropped when the reviewed batch is added.
+
+Every nonblank reviewed mask uses the existing `propose_mask: true` contract, with no client-supplied catalog ID. Blank labels remain unspecified and cannot be matched. Already queued payloads and user-confirmed matches keep their existing behavior. Tests and their scores remain distinct even when privacy review groups identical labels.
+
+BreatheSafe’s admin mask review groups names using the existing conservative normalization (case, whitespace, and Unicode normalization). Suggestions load automatically, at most two automatic requests at a time. Admins see the linked test count and can confirm a suggestion, search for another mask, or create a reviewed catalog mask. A decision updates every linked test; subsequent identical normalized names inherit the admin-approved match. No suggestion silently becomes a confirmed match. Notifications retain the existing one-per-distinct-proposal behavior.
+
+No additional migration is needed for batch review. Deploy the admin frontend/API count change before shipping the app; prior measurement-reuse migration requirements still apply. Device acceptance checks: mixed-participant QR codes, select/deselect a whole participant group, excluding individual attempts, repeated labels, privacy edits, blank mask names, canceled review, batch testing mode, offline submission, and double-tap protection on Add tests.
+
+Validation: 199 Swift core/lookup/queue checks, full-app Swift type-checking, four admin request-coordination checks (`node --test scripts/tests/admin_mask_proposals.test.cjs`), and the Vue production build passed. Backend request checks cover grouped review counts and existing bulk matching/retry behavior. Physical-device UI testing remains pending.

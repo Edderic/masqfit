@@ -69,6 +69,26 @@ import Foundation
             check(FacialAggregates(meters: invalid) == nil, "Accepted invalid distance")
         }
         check(measurements.csv.contains("nose_mm,8.0,mm"), "CSV should include units and rounded values")
+        let batchRows = [
+            MFTCRecord(sourceKey: "attempt-1", participant: "Local name", test: AnonymousFitTest(exercises: ["1": 50], final: 50, mask: "Zimi B95-XL", protocolName: "w1")),
+            MFTCRecord(sourceKey: "attempt-2", participant: "Local name", test: AnonymousFitTest(exercises: ["1": 80], final: nil, mask: "Zimi B95-XL", protocolName: "w1")),
+            MFTCRecord(sourceKey: "attempt-3", participant: "Local name", test: AnonymousFitTest(exercises: [:], final: nil, mask: "Other", protocolName: "w1"))
+        ]
+        var groups = MFTCReviewGroup.groups(batchRows)
+        check(groups.count == 2 && groups[0].records.count == 2, "Review repeated mask/protocol text once without dropping attempts")
+        groups[0].mask = "Reviewed model"; groups[0].protocolName = "Reviewed protocol"
+        let reviewed = groups[0].reviewedRecords()
+        check(reviewed.map { $0.test.mask } == ["Reviewed model", "Reviewed model"], "Apply privacy edits to the entire group")
+        check(reviewed.allSatisfy { $0.participant.isEmpty && $0.test.proposeMask && $0.test.maskID == nil }, "Default named imports to admin review and strip participant labels")
+        check(reviewed.map { $0.sourceKey } == ["attempt-1", "attempt-2"], "Keep distinct attempts for local deduplication")
+        check(reviewed[0].test.final == 50 && reviewed[1].test.final == nil && reviewed[1].test.exercises["1"] == 80, "Preserve complete and incomplete scores through batch review")
+        groups[1].mask = "   "
+        check(!groups[1].reviewedRecords()[0].test.proposeMask, "Blank labels remain unspecified without creating empty proposals")
+        groups[1].mask = "person\nmodel"
+        check(!groups[1].hasValidText, "Reject control characters in reviewed text")
+        groups[1].mask = String(repeating: "㍿", count: 100)
+        check(!groups[1].hasValidText, "Reject labels whose normalized proposal name exceeds backend limits")
+        check(MFTCReviewGroup.groups([]).isEmpty, "Canceling or selecting no tests adds no records")
         try testQueue(measurements)
         try testMeasurementLookup(measurements)
         print("Passed \(checks) anonymous core checks")

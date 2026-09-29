@@ -16,7 +16,6 @@ final class AnonymousFlowViewController: UIViewController {
     private var measurements: FacialAggregates?
     private var records: [MFTCRecord] = []
     private var sourceKeys = Set<String>()
-    private var reviewRecords: [MFTCRecord] = []
     private let stack = UIStackView()
     private var actions: [Int: () -> Void] = [:]
     private var submitted = false
@@ -187,60 +186,21 @@ final class AnonymousFlowViewController: UIViewController {
             do {
                 var seen = self.sourceKeys
                 let imported = try codes.flatMap(MFTCImport.decode)
-                self.reviewRecords = imported.filter { seen.insert($0.sourceKey).inserted }
-                guard self.records.count + self.reviewRecords.count <= 100 else { self.reviewRecords = []; throw MFTCImport.ImportError.invalid }
-                if self.reviewRecords.isEmpty { self.error("These results have already been imported.") }
-                else { self.reviewNext() }
+                let candidates = imported.filter { seen.insert($0.sourceKey).inserted }
+                guard self.records.count < 100 else { throw MFTCImport.ImportError.invalid }
+                if candidates.isEmpty { self.error("These results have already been imported."); return }
+                let review = MFTCBatchSelectionViewController(records: candidates, limit: 100 - self.records.count)
+                review.onComplete = { [weak self] selected in
+                    guard let self = self else { return }
+                    self.records.append(contentsOf: selected)
+                    selected.forEach { self.sourceKeys.insert($0.sourceKey) }
+                    self.render()
+                }
+                let nav = UINavigationController(rootViewController: review)
+                nav.modalPresentationStyle = .fullScreen
+                self.present(nav, animated: true)
             } catch { self.error(error.localizedDescription) }
         }
-    }
-    private func reviewNext() {
-        guard !reviewRecords.isEmpty else { render(); return }
-        let record = reviewRecords.removeFirst()
-        let alert = UIAlertController(title: "Does this test belong to this participant?",
-            message: "MFTC participant: \(record.participant)\n\n\(summary(record.test))\n\nThe MFTC participant label is shown only on this phone and will not be uploaded.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Select and review fields", style: .default) { [weak self] _ in self?.edit(record) })
-        alert.addAction(UIAlertAction(title: "Skip", style: .default) { [weak self] _ in self?.reviewNext() })
-        alert.addAction(UIAlertAction(title: "Stop importing", style: .cancel) { [weak self] _ in self?.reviewRecords = []; self?.render() })
-        present(alert, animated: true)
-    }
-    private func edit(_ record: MFTCRecord) {
-        let alert = UIAlertController(title: "Review shared text", message: "Keep only the mask model and protocol name. Remove names, event details, or other identifying text. Find matches sends only the reviewed mask name to BreatheSafe to suggest catalog entries.", preferredStyle: .alert)
-        alert.addTextField { $0.placeholder = "Mask model (optional)"; $0.text = record.test.mask }
-        alert.addTextField { $0.placeholder = "Protocol (optional)"; $0.text = record.test.protocolName }
-        alert.addAction(UIAlertAction(title: "Keep unresolved", style: .default) { [weak self, weak alert] _ in
-            var reviewed = record
-            reviewed.test.mask = String((alert?.textFields?[0].text ?? "").prefix(200))
-            reviewed.test.protocolName = String((alert?.textFields?[1].text ?? "").prefix(200))
-            self?.accept(reviewed)
-        })
-        alert.addAction(UIAlertAction(title: "Find matches", style: .default) { [weak self, weak alert] _ in
-            var reviewed = record
-            reviewed.test.mask = String((alert?.textFields?[0].text ?? "").prefix(200))
-            reviewed.test.protocolName = String((alert?.textFields?[1].text ?? "").prefix(200))
-            self?.matchMask(reviewed)
-        })
-        alert.addAction(UIAlertAction(title: "Skip", style: .cancel) { [weak self] _ in self?.reviewNext() })
-        present(alert, animated: true)
-    }
-    private func matchMask(_ record: MFTCRecord) {
-        // The user has reviewed the label before it is sent for suggestions.
-        let picker = AnonymousMaskPickerViewController()
-        picker.importedName = record.test.mask
-        picker.onSelect = { [weak self] id, name, proposed in
-            var record = record; record.test.maskID = id; record.test.proposeMask = proposed
-            if let name = name { record.test.mask = name }
-            self?.accept(record)
-        }
-        let nav = UINavigationController(rootViewController: picker)
-        nav.modalPresentationStyle = .fullScreen
-        present(nav, animated: true)
-    }
-    private func accept(_ record: MFTCRecord) {
-        sourceKeys.insert(record.sourceKey)
-        // Keep source keys for deduplication, but discard the participant label after review.
-        records.append(MFTCRecord(sourceKey: record.sourceKey, participant: "", test: record.test))
-        reviewNext()
     }
     private func chooseTestingMode(for sourceKey: String) {
         guard let record = records.first(where: { $0.sourceKey == sourceKey }) else { return }
@@ -258,7 +218,7 @@ final class AnonymousFlowViewController: UIViewController {
     }
     private func summary(_ test: AnonymousFitTest) -> String {
         let scores = test.exercises.keys.sorted { (Int($0) ?? 0) < (Int($1) ?? 0) }.map { "Exercise \($0): \(test.exercises[$0]!)" }.joined(separator: "\n")
-        let catalog = test.proposeMask ? "New mask proposed — admins will be notified for review after submission"
+        let catalog = test.proposeMask ? "Catalog matching will be reviewed by an admin after submission"
             : test.maskID == nil ? "Not matched to catalog" : "Matched to catalog: \(test.mask)"
         return "Mask: \(test.mask.isEmpty ? "Unspecified" : test.mask)\nTesting mode: \((test.testingMode ?? .unknown).label)\nProtocol: \(test.protocolName.isEmpty ? "Unspecified" : test.protocolName)\n\(scores)\nFinal: \(test.final.map { String($0) } ?? "Incomplete / aborted")\n\(catalog)"
     }
@@ -287,7 +247,7 @@ final class AnonymousFlowViewController: UIViewController {
         alert.addAction(UIAlertAction(title: "Clear and continue", style: .destructive) { [weak self] _ in
             guard let self = self else { return }
             self.cancelLookup(); self.previousMeasurements = nil
-            self.measurements = nil; self.credential = nil; self.records = []; self.sourceKeys = []; self.reviewRecords = []; self.submitted = false
+            self.measurements = nil; self.credential = nil; self.records = []; self.sourceKeys = []; self.submitted = false
             if close { self.dismiss(animated: true) } else { self.render() }
         })
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel)); present(alert, animated: true)
@@ -324,5 +284,158 @@ final class AnonymousFlowViewController: UIViewController {
     private func error(_ text: String) {
         let alert = UIAlertController(title: "Please try again", message: text, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default)); present(alert, animated: true)
+    }
+}
+
+/// The source participant labels remain local and are discarded after batch review.
+private final class MFTCBatchSelectionViewController: UITableViewController {
+    var onComplete: (([MFTCRecord]) -> Void)?
+    private let records: [MFTCRecord]
+    private let limit: Int
+    private let participants: [String]
+    private var selected = Set<String>()
+    init(records: [MFTCRecord], limit: Int) {
+        self.records = records; self.limit = limit
+        var seen = Set<String>()
+        participants = records.map { $0.participant }.filter { seen.insert($0).inserted }
+        super.init(style: .insetGrouped)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewDidLoad() {
+        super.viewDidLoad(); title = "Select participant’s tests"
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(cancel))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Review", style: .done, target: self, action: #selector(review))
+        updateSelection()
+    }
+    private func group(_ section: Int) -> [MFTCRecord] { records.filter { $0.participant == participants[section] } }
+    private func updateSelection() {
+        navigationItem.rightBarButtonItem?.isEnabled = !selected.isEmpty && selected.count <= limit
+        title = "Select tests (\(selected.count)/\(limit))"
+        tableView.reloadData()
+    }
+    override func numberOfSections(in tableView: UITableView) -> Int { participants.count }
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { group(section).count + 1 }
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        "MFTC participant: \(participants[section].isEmpty ? "Unspecified" : participants[section])"
+    }
+    override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+        "Select only tests belonging to the person whose measurements you’re sharing. Participant labels stay on this phone. You can add up to \(limit) more tests."
+    }
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
+        let rows = group(indexPath.section)
+        if indexPath.row == 0 {
+            cell.textLabel?.text = rows.allSatisfy { selected.contains($0.sourceKey) } ? "Deselect all in this group" : "Select all \(rows.count) tests in this group"
+            cell.textLabel?.textColor = .systemBlue
+        } else {
+            let row = rows[indexPath.row - 1]
+            cell.textLabel?.text = "\(indexPath.row). \(row.test.mask.isEmpty ? "Unspecified mask" : row.test.mask)"
+            cell.detailTextLabel?.text = "Protocol: \(row.test.protocolName) · Final: \(row.test.final.map { String($0) } ?? "Incomplete / aborted")"
+            cell.accessoryType = selected.contains(row.sourceKey) ? .checkmark : .none
+        }
+        cell.textLabel?.numberOfLines = 0; cell.detailTextLabel?.numberOfLines = 0
+        cell.textLabel?.font = .preferredFont(forTextStyle: .body)
+        cell.detailTextLabel?.font = .preferredFont(forTextStyle: .footnote)
+        cell.textLabel?.adjustsFontForContentSizeCategory = true; cell.detailTextLabel?.adjustsFontForContentSizeCategory = true
+        return cell
+    }
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let rows = group(indexPath.section)
+        if indexPath.row == 0 {
+            let keys = Set(rows.map { $0.sourceKey })
+            if keys.isSubset(of: selected) { selected.subtract(keys) } else { selected.formUnion(keys) }
+        } else {
+            let key = rows[indexPath.row - 1].sourceKey
+            if !selected.insert(key).inserted { selected.remove(key) }
+        }
+        updateSelection()
+    }
+    @objc private func cancel() { dismiss(animated: true) }
+    @objc private func review() {
+        guard !selected.isEmpty, selected.count <= limit else { return }
+        let review = MFTCBatchTextReviewViewController(records: records.filter { selected.contains($0.sourceKey) })
+        review.onComplete = { [weak self] records in
+            guard let self = self else { return }
+            self.dismiss(animated: true) { self.onComplete?(records) }
+        }
+        navigationController?.pushViewController(review, animated: true)
+    }
+}
+
+private final class MFTCBatchTextReviewViewController: UITableViewController {
+    var onComplete: (([MFTCRecord]) -> Void)?
+    private var groups: [MFTCReviewGroup]
+    private var confirmed = false
+    private var completed = false
+    private var testingMode: FitTestingMode = .unknown
+    init(records: [MFTCRecord]) { groups = MFTCReviewGroup.groups(records); super.init(style: .insetGrouped) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewDidLoad() {
+        super.viewDidLoad(); title = "Review shared text"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Add tests", style: .done, target: self, action: #selector(add))
+        refresh()
+    }
+    private func refresh() {
+        navigationItem.rightBarButtonItem?.isEnabled = confirmed && groups.allSatisfy { $0.hasValidText }
+        tableView.reloadData()
+    }
+    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { section == 1 ? groups.count : 1 }
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        ["Testing mode for this batch (optional)", "Mask and protocol labels — tap to edit", "Confirm privacy review"][section]
+    }
+    override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+        if section == 0 { return "Choose the instrument mode, not the mask rating. Leave Unknown if unsure or if modes differ; you can change individual tests after adding them." }
+        if section == 1 { return "Repeated labels are grouped. Remove names, event details, and other identifying text. Named masks will be sent for admin catalog matching after you consent to submit. Blank mask names cannot be matched." }
+        return "Adding tests does not upload them. You’ll review the contribution and give consent before submission."
+    }
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
+        if indexPath.section == 0 {
+            cell.textLabel?.text = testingMode.label; cell.accessoryType = .disclosureIndicator
+        } else if indexPath.section == 1 {
+            let group = groups[indexPath.row]
+            cell.textLabel?.text = "\(group.mask.isEmpty ? "Unspecified mask" : group.mask) — \(group.records.count) tests"
+            cell.detailTextLabel?.text = "Protocol: \(group.protocolName.isEmpty ? "Unspecified" : group.protocolName)" + (group.hasValidText ? "" : "\nEdit required: use up to 200 characters without control characters.")
+            cell.accessoryType = .disclosureIndicator
+        } else {
+            cell.textLabel?.text = "I checked these labels and removed identifying details."
+            cell.accessoryType = confirmed ? .checkmark : .none
+        }
+        cell.textLabel?.numberOfLines = 0; cell.detailTextLabel?.numberOfLines = 0
+        cell.textLabel?.font = .preferredFont(forTextStyle: .body)
+        cell.detailTextLabel?.font = .preferredFont(forTextStyle: .footnote)
+        cell.textLabel?.adjustsFontForContentSizeCategory = true; cell.detailTextLabel?.adjustsFontForContentSizeCategory = true
+        return cell
+    }
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        if indexPath.section == 2 { confirmed.toggle(); refresh(); return }
+        if indexPath.section == 0 {
+            let alert = UIAlertController(title: "Instrument mode for this batch", message: "This applies to every selected test. Individual tests can be changed after adding the batch.", preferredStyle: .alert)
+            for mode in FitTestingMode.allCases {
+                alert.addAction(UIAlertAction(title: mode.label, style: .default) { [weak self] _ in self?.testingMode = mode; self?.refresh() })
+            }
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel)); present(alert, animated: true); return
+        }
+        let index = indexPath.row
+        let alert = UIAlertController(title: "Edit shared labels", message: "Changes apply to all \(groups[index].records.count) tests with these labels. Keep only the mask model and protocol name.", preferredStyle: .alert)
+        alert.addTextField { $0.placeholder = "Mask model (optional)"; $0.text = self.groups[index].mask }
+        alert.addTextField { $0.placeholder = "Protocol (optional)"; $0.text = self.groups[index].protocolName }
+        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+            guard let self = self else { return }
+            self.groups[index].mask = alert?.textFields?[0].text ?? ""
+            self.groups[index].protocolName = alert?.textFields?[1].text ?? ""
+            self.confirmed = false; self.refresh()
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel)); present(alert, animated: true)
+    }
+    @objc private func add() {
+        guard !completed, confirmed, groups.allSatisfy({ $0.hasValidText }) else { return }
+        completed = true; navigationItem.rightBarButtonItem?.isEnabled = false
+        let records = groups.flatMap { $0.reviewedRecords() }.map { record -> MFTCRecord in
+            var record = record; record.test.testingMode = testingMode; return record
+        }
+        onComplete?(records)
     }
 }
