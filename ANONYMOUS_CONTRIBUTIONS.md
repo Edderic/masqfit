@@ -139,3 +139,7 @@ BreatheSafe’s admin mask review groups names using the existing conservative n
 No additional migration is needed for batch review. Deploy the admin frontend/API count change before shipping the app; prior measurement-reuse migration requirements still apply. Device acceptance checks: mixed-participant QR codes, select/deselect a whole participant group, excluding individual attempts, repeated labels, privacy edits, blank mask names, canceled review, batch testing mode, offline submission, and double-tap protection on Add tests.
 
 Validation: 199 Swift core/lookup/queue checks, full-app Swift type-checking, four admin request-coordination checks (`node --test scripts/tests/admin_mask_proposals.test.cjs`), and the Vue production build passed. Backend request checks cover grouped review counts and existing bulk matching/retry behavior. Physical-device UI testing remains pending.
+
+### Batch testing-mode default
+
+Batch review starts with **N99** selected and asks users to confirm whether the tests used N99-mode or N95-mode. **Unknown** remains available when unsure or when the batch contains mixed modes; individual tests can be changed after adding the batch. This is a UI default, not an inference from fit-factor scores. Raw QR decoding still leaves the mode unknown, and previously queued submissions retain their saved modes.

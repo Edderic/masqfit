@@ -367,7 +367,7 @@ private final class MFTCBatchTextReviewViewController: UITableViewController {
     private var groups: [MFTCReviewGroup]
     private var confirmed = false
     private var completed = false
-    private var testingMode: FitTestingMode = .unknown
+    private var testingMode: FitTestingMode = .n99
     init(records: [MFTCRecord]) { groups = MFTCReviewGroup.groups(records); super.init(style: .insetGrouped) }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func viewDidLoad() {
@@ -382,10 +382,10 @@ private final class MFTCBatchTextReviewViewController: UITableViewController {
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { section == 1 ? groups.count : 1 }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Testing mode for this batch (optional)", "Mask and protocol labels — tap to edit", "Confirm privacy review"][section]
+        ["Testing mode for this batch", "Mask and protocol labels — tap to edit", "Confirm privacy review"][section]
     }
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        if section == 0 { return "Choose the instrument mode, not the mask rating. Leave Unknown if unsure or if modes differ; you can change individual tests after adding them." }
+        if section == 0 { return "Were these tests run in N99-mode or N95-mode? N99-mode is selected by default; confirm it matches the instrument mode used. Choose Unknown if unsure or if modes differ. You can change individual tests after adding them." }
         if section == 1 { return "Repeated labels are grouped. Remove names, event details, and other identifying text. Named masks will be sent for admin catalog matching after you consent to submit. Blank mask names cannot be matched." }
         return "Adding tests does not upload them. You’ll review the contribution and give consent before submission."
     }
@@ -412,7 +412,7 @@ private final class MFTCBatchTextReviewViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
         if indexPath.section == 2 { confirmed.toggle(); refresh(); return }
         if indexPath.section == 0 {
-            let alert = UIAlertController(title: "Instrument mode for this batch", message: "This applies to every selected test. Individual tests can be changed after adding the batch.", preferredStyle: .alert)
+            let alert = UIAlertController(title: "Instrument mode for this batch", message: "Choose the instrument mode used, not the mask’s filtration rating. N99-mode is the default; choose Unknown if unsure. This applies to every selected test. Individual tests can be changed after adding the batch.", preferredStyle: .alert)
             for mode in FitTestingMode.allCases {
                 alert.addAction(UIAlertAction(title: mode.label, style: .default) { [weak self] _ in self?.testingMode = mode; self?.refresh() })
             }
