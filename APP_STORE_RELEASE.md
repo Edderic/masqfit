@@ -42,3 +42,7 @@ Apple hosts the build and signing workflow, avoiding signing-certificate exports
 - Import and review community fit tests in batches.
 - Choose N99, N95, or Unknown testing mode.
 - Let admins review mask matches with automated suggestions.
+
+## Candidate validation
+
+The 1.1.0 build 2 candidate passed 199 standalone Swift checks and a full generic-iOS Release build with `CODE_SIGNING_ALLOWED=NO` on Xcode 26.6. This verifies compilation/resources, not signing or App Store validation. A signed archive, device/TestFlight checks, and upload are still required.
