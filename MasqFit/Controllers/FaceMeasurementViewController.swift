@@ -8,6 +8,7 @@ class FaceMeasurementViewController: UIViewController {
     enum MeasurementMode {
         case contribute
         case recommend
+        case captureOnly
     }
 
     // MARK: - UI Elements
@@ -31,6 +32,9 @@ class FaceMeasurementViewController: UIViewController {
     private var measurementCount = 0
     private let requiredMeasurements = 30 // Number of measurements to collect
     private var isMeasurementsVisible = false
+    private var shouldRecommendWhenMeasurementCompletes = false
+    private var startButtonHeightConstraint: NSLayoutConstraint?
+    private var exportButtonHeightConstraint: NSLayoutConstraint?
     private var managedUsers: [ManagedUser] = []
 
     // Authentication and API properties
@@ -40,6 +44,7 @@ class FaceMeasurementViewController: UIViewController {
     var apiClient: APIClient?
     var offlineSyncManager: OfflineSyncManager?
     var measurementMode: MeasurementMode = .contribute
+    var onCapture: ((FacialAggregates) -> Void)?
     var onRecommend: (([String: Double]) -> Void)?
 
     // MARK: - Overlay Properties
@@ -113,7 +118,9 @@ class FaceMeasurementViewController: UIViewController {
 
         // Create measurement label (using UITextView for better text display)
         measurementLabel = UITextView()
-        measurementLabel.text = "Measurements will appear here after you start a measurement.\n\nPress 'Start Measurement' to begin collecting facial measurement data."
+        measurementLabel.text = measurementMode == .recommend
+            ? "Measurements will appear here after recommendation starts measurement collection.\n\nPress 'Recommend' to begin."
+            : "Measurements will appear here after you start a measurement.\n\nPress 'Start Measurement' to begin collecting facial measurement data."
         measurementLabel.font = UIFont.systemFont(ofSize: 14)
         measurementLabel.backgroundColor = UIColor.secondarySystemBackground
         measurementLabel.textColor = UIColor.label
@@ -146,7 +153,8 @@ class FaceMeasurementViewController: UIViewController {
         exportButton.setTitleColor(UIColor.white, for: .normal)
         exportButton.layer.cornerRadius = 8
         exportButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .medium)
-        exportButton.isEnabled = false
+        exportButton.isEnabled = measurementMode == .recommend
+        exportButton.isHidden = measurementMode != .recommend
         exportButton.translatesAutoresizingMaskIntoConstraints = false
         exportButton.addTarget(self, action: #selector(saveButtonTapped(_:)), for: .touchUpInside)
         view.addSubview(exportButton)
@@ -241,13 +249,11 @@ class FaceMeasurementViewController: UIViewController {
             exportButton.bottomAnchor.constraint(equalTo: cancelButton.topAnchor, constant: -12),
             exportButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             exportButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            exportButton.heightAnchor.constraint(equalToConstant: 50),
 
             // Start button (above save)
             startButton.bottomAnchor.constraint(equalTo: exportButton.topAnchor, constant: -12),
             startButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             startButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            startButton.heightAnchor.constraint(equalToConstant: 50),
 
             // Hidden buttons (for reference, but not visible)
             logoutButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
@@ -268,6 +274,20 @@ class FaceMeasurementViewController: UIViewController {
             loadingIndicator.centerXAnchor.constraint(equalTo: loadingOverlay.centerXAnchor),
             loadingIndicator.centerYAnchor.constraint(equalTo: loadingOverlay.centerYAnchor)
         ])
+
+        exportButtonHeightConstraint = exportButton.heightAnchor.constraint(equalToConstant: measurementMode == .recommend ? 50 : 0)
+        exportButtonHeightConstraint?.isActive = true
+
+        startButtonHeightConstraint = startButton.heightAnchor.constraint(equalToConstant: 50)
+        startButtonHeightConstraint?.isActive = true
+
+        if measurementMode == .recommend {
+            startButton.isHidden = true
+            startButton.isEnabled = false
+            startButtonHeightConstraint?.constant = 0
+            instructionLabel.text = "Press Recommend to start measurement and get mask recommendations."
+            statusLabel.text = "Ready to recommend"
+        }
     }
 
     func setLoading(_ isLoading: Bool) {
@@ -487,7 +507,20 @@ class FaceMeasurementViewController: UIViewController {
     @objc func saveButtonTapped(_ sender: UIButton) {
         switch measurementMode {
         case .recommend:
-            handleRecommend()
+            if isMeasuring {
+                return
+            }
+            if let aggregated = aggregatedMeasurementsIfAvailable() {
+                onRecommend?(aggregated)
+                return
+            }
+
+            shouldRecommendWhenMeasurementCompletes = true
+            exportButton.isEnabled = false
+            exportButton.setTitle("Measuring...", for: .normal)
+            startMeasurement()
+        case .captureOnly:
+            break
         case .contribute:
             saveData()
         }
@@ -555,8 +588,10 @@ class FaceMeasurementViewController: UIViewController {
         measurementCount = 0
         measurementEngine.clearHistory()
 
-        startButton.setTitle("Stop Measurement", for: .normal)
-        startButton.backgroundColor = UIColor.systemRed
+        if measurementMode != .recommend {
+            startButton.setTitle("Stop Measurement", for: .normal)
+            startButton.backgroundColor = UIColor.systemRed
+        }
         exportButton.isEnabled = false
         progressView.isHidden = false
         progressView.progress = 0.0
@@ -573,13 +608,14 @@ class FaceMeasurementViewController: UIViewController {
     private func stopMeasurement() {
         isMeasuring = false
 
-        startButton.setTitle("Start Measurement", for: .normal)
-        startButton.backgroundColor = UIColor.systemBlue
-        exportButton.isEnabled = true
+        if measurementMode != .recommend {
+            startButton.setTitle("Start Measurement", for: .normal)
+            startButton.backgroundColor = UIColor.systemBlue
+        }
         progressView.isHidden = true
 
         instructionLabel.text = measurementMode == .recommend
-            ? "Measurement complete! You can now get recommendations."
+            ? "Measurement complete! Getting recommendations..."
             : "Measurement complete! You can now export your data."
         statusLabel.text = "Measurement complete"
 
@@ -591,6 +627,25 @@ class FaceMeasurementViewController: UIViewController {
         // Show final measurements
         let averageMeasurements = measurementEngine.getAverageMeasurements()
         displayMeasurements(averageMeasurements)
+
+        if measurementMode == .captureOnly {
+            guard measurementCount >= requiredMeasurements, let aggregates = FacialAggregates(meters: averageMeasurements) else {
+                showError("Some facial measurements are missing. Please rescan your face.")
+                return
+            }
+            measurementEngine.clearHistory()
+            onCapture?(aggregates)
+        } else if measurementMode == .recommend {
+            exportButton.setTitle("Recommend", for: .normal)
+            exportButton.isEnabled = true
+            if shouldRecommendWhenMeasurementCompletes {
+                shouldRecommendWhenMeasurementCompletes = false
+                handleRecommend()
+            }
+        } else {
+            // Contribute flow: one button does measurement + save.
+            saveData()
+        }
     }
 
     // MARK: - Data Display
@@ -613,6 +668,11 @@ class FaceMeasurementViewController: UIViewController {
         measurementLabel.text = measurementText
     }
 
+    private func aggregatedMeasurementsIfAvailable() -> [String: Double]? {
+        let exported = measurementEngine.exportMeasurements()
+        return computeAggregatedMeasurements(from: exported)
+    }
+
     private func handleRecommend() {
         let exported = measurementEngine.exportMeasurements()
         guard let aggregated = computeAggregatedMeasurements(from: exported) else {
@@ -623,64 +683,9 @@ class FaceMeasurementViewController: UIViewController {
     }
 
     private func computeAggregatedMeasurements(from exported: [String: Any]) -> [String: Double]? {
-        guard let averageMeasurements = exported["average_measurements"] as? [String: Any] else {
-            return nil
-        }
-
-        let noseKeys = [
-            "160-371", "371-367", "367-387", "387-14",
-            "609-802", "802-798", "798-14", "14-818"
-        ]
-        let strapKeys = [
-            "967-464", "464-456", "456-451", "451-455",
-            "999-1027", "1027-884", "884-883", "883-879"
-        ]
-        let topCheekKeys = [
-            "879-600", "600-756", "756-862", "862-753", "753-594", "594-582", "582-609",
-            "451-151", "151-321", "321-434", "434-318", "318-145", "145-133", "133-160"
-        ]
-        let midCheekKeys = [
-            "509-893", "893-894", "894-881", "881-880", "880-879",
-            "60-478", "478-479", "479-453", "453-452", "452-451"
-        ]
-        let chinKeys = [
-            "1049-983", "983-982", "982-1050", "1050-1051", "1051-1052", "1052-1053", "1053-509",
-            "1049-984", "984-985", "985-986", "986-987", "987-988", "988-989", "989-60"
-        ]
-
-        func sum(keys: [String]) -> Double? {
-            var total = 0.0
-            var found = false
-            for key in keys {
-                guard let entry = averageMeasurements[key] as? [String: Any] else {
-                    continue
-                }
-                if let value = entry["value"] as? Double, value > 0 {
-                    total += value
-                    found = true
-                } else if let number = entry["value"] as? NSNumber, number.doubleValue > 0 {
-                    total += number.doubleValue
-                    found = true
-                }
-            }
-            return found ? total : nil
-        }
-
-        guard let nose = sum(keys: noseKeys),
-              let strap = sum(keys: strapKeys),
-              let topCheek = sum(keys: topCheekKeys),
-              let midCheek = sum(keys: midCheekKeys),
-              let chin = sum(keys: chinKeys) else {
-            return nil
-        }
-
-        return [
-            "nose_mm": nose,
-            "strap_mm": strap,
-            "top_cheek_mm": topCheek,
-            "mid_cheek_mm": midCheek,
-            "chin_mm": chin
-        ]
+        guard let averages = exported["average_measurements"] as? [String: [String: Any]] else { return nil }
+        let values = averages.compactMapValues { ($0["value"] as? NSNumber)?.doubleValue }
+        return FacialAggregates.aggregate(millimeters: values)
     }
 
     // MARK: - Data Save
@@ -876,6 +881,7 @@ class FaceMeasurementViewController: UIViewController {
         // Clear/reset current measurements
         measurementEngine.clearHistory()
         measurementCount = 0
+        shouldRecommendWhenMeasurementCompletes = false
         
         // Update selected user
         selectedUser = user
@@ -886,15 +892,32 @@ class FaceMeasurementViewController: UIViewController {
         // Reset UI
         startButton.setTitle("Start Measurement", for: .normal)
         startButton.backgroundColor = UIColor.systemBlue
-        exportButton.isEnabled = false
         progressView.isHidden = true
         progressView.progress = 0.0
-        statusLabel.text = "Ready to start"
-        instructionLabel.text = "Position your face close to the camera (less than 12 inches away) in portrait mode. Remove glasses, hats, or anything covering your face."
-        
-        // Clear measurements display
-        measurementLabel.text = "Measurements will appear here after you start a measurement.\n\nPress 'Start Measurement' to begin collecting facial measurement data."
-        
+
+        if measurementMode == .recommend {
+            startButton.isHidden = true
+            startButton.isEnabled = false
+            startButtonHeightConstraint?.constant = 0
+            exportButton.isHidden = false
+            exportButtonHeightConstraint?.constant = 50
+            exportButton.isEnabled = true
+            exportButton.setTitle("Recommend", for: .normal)
+            statusLabel.text = "Ready to recommend"
+            instructionLabel.text = "Press Recommend to start measurement and get mask recommendations."
+            measurementLabel.text = "Measurements will appear here after recommendation starts measurement collection.\n\nPress 'Recommend' to begin."
+        } else {
+            startButton.isHidden = false
+            startButton.isEnabled = true
+            startButtonHeightConstraint?.constant = 50
+            exportButton.isHidden = true
+            exportButtonHeightConstraint?.constant = 0
+            exportButton.isEnabled = false
+            statusLabel.text = "Ready to start"
+            instructionLabel.text = "Position your face close to the camera (less than 12 inches away) in portrait mode. Remove glasses, hats, or anything covering your face."
+            measurementLabel.text = "Measurements will appear here after you start a measurement.\n\nPress 'Start Measurement' to begin collecting facial measurement data."
+        }
+
         // Reset background color
         UIView.animate(withDuration: 0.3) {
             self.view.backgroundColor = UIColor.systemBackground

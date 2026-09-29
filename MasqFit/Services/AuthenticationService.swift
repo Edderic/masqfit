@@ -159,6 +159,16 @@ class AuthenticationService {
         }
     }
     
+    /// Clear local authentication state without making a network call
+    func invalidateLocalSession() {
+        let user = currentUser
+        currentUser = nil
+        sessionToken = nil
+        clearCredentials()
+        clearCookies()
+        delegate?.authenticationService(self, didLogout: user)
+    }
+
     /// Logout current user
     func logout(completion: @escaping (Result<Void, AuthenticationError>) -> Void) {
         guard let url = URL(string: "\(baseURL)/users/log_out") else {
