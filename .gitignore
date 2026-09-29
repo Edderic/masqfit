@@ -12,4 +12,4 @@ Carthage/
 .env
 .env.*
 *.xcworkspace
-xcshareddata/
+# Shared Xcode schemes are committed for archives and Xcode Cloud.
