@@ -70,6 +70,7 @@ import Foundation
         }
         check(measurements.csv.contains("nose_mm,8.0,mm"), "CSV should include units and rounded values")
         try testQueue(measurements)
+        try testMeasurementLookup(measurements)
         print("Passed \(checks) anonymous core checks")
     }
 }
