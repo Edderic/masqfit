@@ -6,6 +6,13 @@ final class AnonymousFlowViewController: UIViewController {
     enum Mode { case measureOnly, contribute }
     let mode: Mode
     private var credential: String?
+    private var previousMeasurements: PreviousAnonymousMeasurements?
+    private let measurementLookup = AnonymousMeasurementLookup()
+    private var lookupTask: URLSessionDataTask?
+    private var lookupID = UUID()
+    private var loadingMeasurements = false
+    private var lookupMessage: String?
+    private var lookupFailed = false
     private var measurements: FacialAggregates?
     private var records: [MFTCRecord] = []
     private var sourceKeys = Set<String>()
@@ -55,7 +62,7 @@ final class AnonymousFlowViewController: UIViewController {
     private func render() {
         clear()
         if mode == .contribute && credential == nil {
-            label("Contribute without a name or email. Save your participant code to link future visits. Anyone with your code can contribute under the same identity.")
+            label("Contribute without a name or email. Save your participant code to link future visits. Anyone with your code can access and reuse your saved measurements and contribute under the same identity.")
             button("New participant") { [weak self] in
                 guard let self = self else { return }
                 do { self.credential = try AnonymousIdentity.create(); self.render() } catch { self.error(error.localizedDescription) }
@@ -78,12 +85,21 @@ final class AnonymousFlowViewController: UIViewController {
                 if let image = self.qrImage(AnonymousIdentity.prefix + credential) { items.append(image) }
                 self.share(items)
             }
-            label("Keep this code yourself. This phone forgets the active participant when you finish. Lost codes cannot be recovered by name or email.")
+            label("Keep this code yourself. This phone forgets the active participant when you finish. Keep it private: anyone with this code can access and reuse your saved measurements. Lost codes cannot be recovered by name or email.")
         } else { label("Scan to display five facial measurements. Nothing is uploaded. Copy or share only if you choose.") }
         if submitted {
             label("Submission saved. Check the queue for delivery status.", large: true)
             button("Submission queue") { [weak self] in self?.showQueue() }
         } else {
+            if loadingMeasurements { label("Looking for previous measurements…") }
+            if let message = lookupMessage { label(message) }
+            if lookupFailed {
+                button("Try loading previous measurements again") { [weak self] in self?.loadPreviousMeasurements() }
+            }
+            if let previous = previousMeasurements {
+                label("Use my previous measurements ✓", large: true)
+                label(previous.summary + " You can scan again if your measurements have changed.")
+            }
             if let measurements = measurements {
                 label(measurements.text, large: true)
                 if mode == .measureOnly {
@@ -91,7 +107,7 @@ final class AnonymousFlowViewController: UIViewController {
                     button("Share CSV") { [weak self] in self?.shareCSV(measurements.csv) }
                 }
             }
-            button(measurements == nil ? "Scan face" : "Rescan face") { [weak self] in self?.capture() }
+            button(measurements == nil ? "Scan face" : "Scan again") { [weak self] in self?.capture() }
             if mode == .contribute && measurements != nil {
                 label("\(records.count) fit tests selected. QR import is optional.")
                 for (index, record) in records.enumerated() {
@@ -109,10 +125,38 @@ final class AnonymousFlowViewController: UIViewController {
         }
         button("Next participant") { [weak self] in self?.confirmClear(close: false) }
     }
+    private func cancelLookup() {
+        lookupID = UUID(); lookupTask?.cancel(); lookupTask = nil
+        loadingMeasurements = false; lookupFailed = false; lookupMessage = nil
+    }
+    private func useSavedCode(_ code: String) {
+        cancelLookup(); credential = code; measurements = nil; previousMeasurements = nil
+        loadPreviousMeasurements()
+    }
+    private func loadPreviousMeasurements() {
+        guard let credential = credential else { return }
+        cancelLookup(); loadingMeasurements = true
+        let requestID = lookupID
+        render()
+        lookupTask = measurementLookup.fetch(credential: credential) { [weak self] result in
+            guard let self = self, self.lookupID == requestID, self.credential == credential else { return }
+            self.lookupTask = nil; self.loadingMeasurements = false
+            switch result {
+            case .success(let previous):
+                self.previousMeasurements = previous; self.measurements = previous?.aggregates
+                self.lookupMessage = previous == nil ? "No saved measurements were found for this code. Scan your face to continue. Measurements still waiting in the submission queue are not available here yet." : nil
+            case .failure:
+                self.lookupFailed = true
+                self.lookupMessage = "Could not load previous measurements. Try again when connected, or scan your face."
+            }
+            self.render()
+        }
+    }
     private func capture() {
+        cancelLookup(); render()
         let capture = FaceMeasurementViewController(); capture.measurementMode = .captureOnly
         capture.onCapture = { [weak self, weak capture] value in
-            capture?.dismiss(animated: true) { self?.measurements = value; self?.render() }
+            capture?.dismiss(animated: true) { self?.previousMeasurements = nil; self?.measurements = value; self?.render() }
         }
         let nav = UINavigationController(rootViewController: capture); nav.modalPresentationStyle = .fullScreen
         present(nav, animated: true)
@@ -125,7 +169,7 @@ final class AnonymousFlowViewController: UIViewController {
     private func scanIdentity() {
         scanner { [weak self] codes in
             guard let code = codes.compactMap(AnonymousIdentity.parse).first else { self?.error("No valid participant code found."); return }
-            self?.credential = code; self?.render()
+            self?.useSavedCode(code)
         }
     }
     private func enterIdentity() {
@@ -133,7 +177,7 @@ final class AnonymousFlowViewController: UIViewController {
         alert.addTextField { $0.autocapitalizationType = .none; $0.autocorrectionType = .no }
         alert.addAction(UIAlertAction(title: "Use code", style: .default) { [weak self, weak alert] _ in
             guard let code = AnonymousIdentity.parse(alert?.textFields?.first?.text ?? "") else { self?.error("That participant code is invalid."); return }
-            self?.credential = code; self?.render()
+            self?.useSavedCode(code)
         })
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel)); present(alert, animated: true)
     }
@@ -220,13 +264,15 @@ final class AnonymousFlowViewController: UIViewController {
     }
     private func consent() {
         guard let measurements = measurements, let credential = credential else { return }
-        let review = "\(measurements.text)\n\n" + records.map { summary($0.test) }.joined(separator: "\n\n")
+        let sourceID = previousMeasurements?.contribution_id
+        let sourceSummary = previousMeasurements?.summary ?? "Using the face scan from this visit."
+        let review = sourceSummary + "\n\n\(measurements.text)\n\n" + records.map { summary($0.test) }.joined(separator: "\n\n")
         let alert = UIAlertController(title: "Review contribution", message: review + "\n\n" + AnonymousContribution.consentText, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "I agree — submit", style: .default) { [weak self] _ in
             guard let self = self, !self.submitted else { return }
             do {
-                try AnonymousSubmissionStore.shared.enqueue(AnonymousContribution(measurements: measurements, tests: self.records.map { $0.test }), credential: credential)
-                self.submitted = true; self.measurements = nil; self.records = []; self.sourceKeys = []; self.render()
+                try AnonymousSubmissionStore.shared.enqueue(AnonymousContribution(measurements: measurements, tests: self.records.map { $0.test }, measurementSourceID: sourceID), credential: credential)
+                self.submitted = true; self.previousMeasurements = nil; self.measurements = nil; self.records = []; self.sourceKeys = []; self.render()
             } catch { self.error(error.localizedDescription) }
         })
         alert.addAction(UIAlertAction(title: "Back", style: .cancel)); present(alert, animated: true)
@@ -240,6 +286,7 @@ final class AnonymousFlowViewController: UIViewController {
         let alert = UIAlertController(title: close ? "Finish?" : "Next participant?", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Clear and continue", style: .destructive) { [weak self] _ in
             guard let self = self else { return }
+            self.cancelLookup(); self.previousMeasurements = nil
             self.measurements = nil; self.credential = nil; self.records = []; self.sourceKeys = []; self.reviewRecords = []; self.submitted = false
             if close { self.dismiss(animated: true) } else { self.render() }
         })

@@ -12,6 +12,12 @@ struct FacialAggregates: Codable, Equatable {
         self.values = values
     }
 
+    init?(values: [String: Double]) {
+        guard Set(values.keys) == Set(Self.labels.map { $0.0 }),
+              values.values.allSatisfy({ $0.isFinite && $0 > 0 }) else { return nil }
+        self.values = values
+    }
+
     var text: String {
         Self.labels.map { "\($0.1): \(String(format: "%.1f", values[$0.0] ?? 0)) mm" }.joined(separator: "\n")
     }

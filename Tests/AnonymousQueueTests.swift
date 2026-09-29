@@ -25,9 +25,9 @@ private final class SubmissionProtocol: URLProtocol {
         Self.respond?(request, data, self)
     }
     override func stopLoading() {}
-    func reply(_ status: Int, _ body: [String: String]) {
+    func reply(_ status: Int, _ body: [String: Any]) {
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: try! JSONEncoder().encode(body))
+        client?.urlProtocol(self, didLoad: try! JSONSerialization.data(withJSONObject: body))
         client?.urlProtocolDidFinishLoading(self)
     }
 }
@@ -59,7 +59,14 @@ extension AnonymousCoreTests {
         imported[0].test.testingMode = .n95
         imported[1].test.testingMode = .n99
         let reviewedTests = imported.map { $0.test }
-        let payload = AnonymousContribution(measurements: measurements, tests: reviewedTests)
+        let original = AnonymousContribution(measurements: measurements, tests: reviewedTests)
+        let legacyJSON = try JSONEncoder().encode(original)
+        let legacyReloaded = try JSONDecoder().decode(AnonymousContribution.self, from: legacyJSON)
+        check(legacyReloaded.measurement_source_contribution_id == nil, "Legacy queued submissions need no source")
+        let legacyObject = try JSONSerialization.jsonObject(with: JSONEncoder().encode(legacyReloaded)) as! [String: Any]
+        check(legacyObject["measurement_source_contribution_id"] == nil, "Never add provenance to legacy wire payloads")
+        let sourceID = UUID()
+        let payload = AnonymousContribution(measurements: measurements, tests: reviewedTests, measurementSourceID: sourceID)
         var sentBodies: [Data] = []
         SubmissionProtocol.respond = { request, data, handler in
             check(request.value(forHTTPHeaderField: "Authorization") == "Bearer " + token, "Use participant credential")
@@ -87,6 +94,7 @@ extension AnonymousCoreTests {
         let second = try JSONSerialization.jsonObject(with: sentBodies[1]) as! NSDictionary
         check(first == second, "Retry must use exactly the consented payload and receipt")
         let contribution = first["contribution"] as! [String: Any]
+        check(contribution["measurement_source_contribution_id"] as? String == sourceID.uuidString, "Offline retries preserve the original scan reference")
         let tests = contribution["fit_tests"] as! [[String: Any]]
         check(tests.compactMap { $0["testing_mode"] as? String } == ["n95", "n99", "unknown"], "Preserve all testing modes through offline storage and retry")
         check(tests.count == 3, "Send all three reviewed fit tests")
@@ -116,4 +124,41 @@ extension AnonymousCoreTests {
         catch { checks += 1 }
         check(try String(contentsOf: directory.appendingPathComponent("queue.json"), encoding: .utf8) == "corrupt queue", "Preserve unreadable file")
     }
+    static func testMeasurementLookup(_ measurements: FacialAggregates) throws {
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [SubmissionProtocol.self]
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel(); SubmissionProtocol.respond = nil }
+        let lookup = AnonymousMeasurementLookup(session: session)
+        let token = String(repeating: "a", count: 64)
+        let sourceID = UUID()
+        let source: [String: Any] = ["contribution_id": sourceID.uuidString, "measurement_version": 1,
+                                    "measurements": measurements.values, "consent_accepted_at": "2026-09-29T01:00:00.000Z"]
+        func fetch(_ body: [String: Any], status: Int = 200) -> Result<PreviousAnonymousMeasurements?, Error> {
+            var received: Result<PreviousAnonymousMeasurements?, Error>?
+            SubmissionProtocol.respond = { request, _, handler in
+                check(request.httpMethod == "GET", "Lookup never creates a submission")
+                check(request.url?.path == "/anonymous_contributions/previous_measurements", "Use measurement lookup endpoint")
+                check(request.value(forHTTPHeaderField: "Authorization") == "Bearer " + token, "Authenticate lookup with saved participant code")
+                check(request.value(forHTTPHeaderField: "Cookie") == nil, "Lookup does not use account cookies")
+                check(request.url?.query == nil, "Do not place credential in URL")
+                handler.reply(status, body)
+            }
+            lookup.fetch(credential: token) { received = $0 }
+            waitFor { received != nil }
+            return received!
+        }
+        let previous = try fetch(["previous_measurements": source]).get()!
+        check(previous.aggregates == measurements && previous.contribution_id == sourceID, "Load original measurement snapshot and provenance")
+        check(previous.submissionDate != nil, "Parse Rails fractional timestamp")
+        check(try fetch(["previous_measurements": NSNull()]).get() == nil, "Explicit null means no previous scan")
+        for invalid in [source.merging(["measurement_version": 2]) { _, new in new },
+                        source.merging(["measurements": ["nose_mm": 3]]) { _, new in new },
+                        source.merging(["consent_accepted_at": "invalid"]) { _, new in new }] {
+            if case .success = fetch(["previous_measurements": invalid]) { check(false, "Reject unusable saved measurements") }
+        }
+        if case .success = fetch([:]) { check(false, "Missing response key must not mean no scan") }
+        if case .success = fetch(["previous_measurements": NSNull()], status: 404) { check(false, "Unavailable backend must not mean no scan") }
+        check(FacialAggregates(values: measurements.values.merging(["chin_mm": -1]) { _, new in new }) == nil, "Reject nonpositive saved aggregates")
+    }
+
 }

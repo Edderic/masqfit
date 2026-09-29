@@ -6,14 +6,16 @@ struct AnonymousContribution: Codable {
     let contribution_id: UUID
     let measurement_version: Int
     let measurements: [String: Double]
+    let measurement_source_contribution_id: UUID?
     let fit_tests: [AnonymousFitTest]
     let consent_version: String
     let consent_accepted_at: String
     static let consentVersion = "anonymous-2026-09-14"
     static let consentText = "I agree to share these five facial measurements and the selected fit-test results with BreatheSafe for mask-fitting research. No name, email, face image, or landmark coordinates will be included. My saved code links contributions across visits. Submitted data is stored by BreatheSafe; offline submissions are saved on this phone and sent when connectivity is available."
 
-    init(measurements: FacialAggregates, tests: [AnonymousFitTest]) {
+    init(measurements: FacialAggregates, tests: [AnonymousFitTest], measurementSourceID: UUID? = nil) {
         contribution_id = UUID(); measurement_version = FacialAggregates.version
+        measurement_source_contribution_id = measurementSourceID
         self.measurements = measurements.values; fit_tests = tests
         consent_version = Self.consentVersion
         consent_accepted_at = ISO8601DateFormatter().string(from: Date())
@@ -184,4 +186,66 @@ final class KeychainAnonymousCredentials: AnonymousCredentialStorage {
         return String(data: data, encoding: .utf8)
     }
     func remove(_ id: UUID) { SecItemDelete(key(id) as CFDictionary) }
+}
+
+/// Only the aggregate measurements are retrieved; credentials and responses are not cached.
+struct PreviousAnonymousMeasurements: Decodable {
+    let contribution_id: UUID
+    let measurement_version: Int
+    let measurements: [String: Double]
+    let consent_accepted_at: String
+
+    var aggregates: FacialAggregates? {
+        guard measurement_version == FacialAggregates.version else { return nil }
+        return FacialAggregates(values: measurements)
+    }
+    var submissionDate: Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: consent_accepted_at) ?? ISO8601DateFormatter().date(from: consent_accepted_at)
+    }
+    var summary: String {
+        let date = submissionDate.map { DateFormatter.localizedString(from: $0, dateStyle: .medium, timeStyle: .none) } ?? "a previous visit"
+        return "Using your previous measurements, originally submitted \(date). No new face scan is included."
+    }
+}
+
+final class AnonymousMeasurementLookup {
+    private let session: URLSession
+    init(session: URLSession? = nil) {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = nil; config.httpShouldSetCookies = false
+        config.urlCache = nil; config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.timeoutIntervalForRequest = 30; config.timeoutIntervalForResource = 60
+        self.session = session ?? URLSession(configuration: config)
+    }
+    @discardableResult
+    func fetch(credential: String, completion: @escaping (Result<PreviousAnonymousMeasurements?, Error>) -> Void) -> URLSessionDataTask {
+        var request = URLRequest(url: URL(string: "https://www.breathesafe.xyz/anonymous_contributions/previous_measurements")!)
+        request.setValue("Bearer " + credential, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let task = session.dataTask(with: request) { data, response, error in
+            let result: Result<PreviousAnonymousMeasurements?, Error>
+            do {
+                if let error = error { throw error }
+                guard (response as? HTTPURLResponse)?.statusCode == 200, let data = data else {
+                    throw StoreError.message("Could not load previous measurements. Try again when connected, or scan your face.")
+                }
+                // Require an explicit null for no history, so unexpected server responses aren't treated as no history.
+                guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      object.keys.contains("previous_measurements") else {
+                    throw StoreError.message("Could not read saved measurements. Try again or scan your face.")
+                }
+                struct Envelope: Decodable { let previous_measurements: PreviousAnonymousMeasurements? }
+                let previous = try JSONDecoder().decode(Envelope.self, from: data).previous_measurements
+                if let previous = previous, previous.aggregates == nil || previous.submissionDate == nil {
+                    throw StoreError.message("These saved measurements cannot be reused by this version of the app. Scan your face to continue.")
+                }
+                result = .success(previous)
+            } catch { result = .failure(error) }
+            DispatchQueue.main.async { completion(result) }
+        }
+        task.resume()
+        return task
+    }
 }
