@@ -8,6 +8,7 @@ class FaceMeasurementViewController: UIViewController {
     enum MeasurementMode {
         case contribute
         case recommend
+        case captureOnly
     }
 
     // MARK: - UI Elements
@@ -43,6 +44,7 @@ class FaceMeasurementViewController: UIViewController {
     var apiClient: APIClient?
     var offlineSyncManager: OfflineSyncManager?
     var measurementMode: MeasurementMode = .contribute
+    var onCapture: ((FacialAggregates) -> Void)?
     var onRecommend: (([String: Double]) -> Void)?
 
     // MARK: - Overlay Properties
@@ -517,6 +519,8 @@ class FaceMeasurementViewController: UIViewController {
             exportButton.isEnabled = false
             exportButton.setTitle("Measuring...", for: .normal)
             startMeasurement()
+        case .captureOnly:
+            break
         case .contribute:
             saveData()
         }
@@ -584,7 +588,7 @@ class FaceMeasurementViewController: UIViewController {
         measurementCount = 0
         measurementEngine.clearHistory()
 
-        if measurementMode == .contribute {
+        if measurementMode != .recommend {
             startButton.setTitle("Stop Measurement", for: .normal)
             startButton.backgroundColor = UIColor.systemRed
         }
@@ -604,7 +608,7 @@ class FaceMeasurementViewController: UIViewController {
     private func stopMeasurement() {
         isMeasuring = false
 
-        if measurementMode == .contribute {
+        if measurementMode != .recommend {
             startButton.setTitle("Start Measurement", for: .normal)
             startButton.backgroundColor = UIColor.systemBlue
         }
@@ -624,7 +628,14 @@ class FaceMeasurementViewController: UIViewController {
         let averageMeasurements = measurementEngine.getAverageMeasurements()
         displayMeasurements(averageMeasurements)
 
-        if measurementMode == .recommend {
+        if measurementMode == .captureOnly {
+            guard measurementCount >= requiredMeasurements, let aggregates = FacialAggregates(meters: averageMeasurements) else {
+                showError("Some facial measurements are missing. Please rescan your face.")
+                return
+            }
+            measurementEngine.clearHistory()
+            onCapture?(aggregates)
+        } else if measurementMode == .recommend {
             exportButton.setTitle("Recommend", for: .normal)
             exportButton.isEnabled = true
             if shouldRecommendWhenMeasurementCompletes {
@@ -672,64 +683,9 @@ class FaceMeasurementViewController: UIViewController {
     }
 
     private func computeAggregatedMeasurements(from exported: [String: Any]) -> [String: Double]? {
-        guard let averageMeasurements = exported["average_measurements"] as? [String: Any] else {
-            return nil
-        }
-
-        let noseKeys = [
-            "160-371", "371-367", "367-387", "387-14",
-            "609-802", "802-798", "798-14", "14-818"
-        ]
-        let strapKeys = [
-            "967-464", "464-456", "456-451", "451-455",
-            "999-1027", "1027-884", "884-883", "883-879"
-        ]
-        let topCheekKeys = [
-            "879-600", "600-756", "756-862", "862-753", "753-594", "594-582", "582-609",
-            "451-151", "151-321", "321-434", "434-318", "318-145", "145-133", "133-160"
-        ]
-        let midCheekKeys = [
-            "509-893", "893-894", "894-881", "881-880", "880-879",
-            "60-478", "478-479", "479-453", "453-452", "452-451"
-        ]
-        let chinKeys = [
-            "1049-983", "983-982", "982-1050", "1050-1051", "1051-1052", "1052-1053", "1053-509",
-            "1049-984", "984-985", "985-986", "986-987", "987-988", "988-989", "989-60"
-        ]
-
-        func sum(keys: [String]) -> Double? {
-            var total = 0.0
-            var found = false
-            for key in keys {
-                guard let entry = averageMeasurements[key] as? [String: Any] else {
-                    continue
-                }
-                if let value = entry["value"] as? Double, value > 0 {
-                    total += value
-                    found = true
-                } else if let number = entry["value"] as? NSNumber, number.doubleValue > 0 {
-                    total += number.doubleValue
-                    found = true
-                }
-            }
-            return found ? total : nil
-        }
-
-        guard let nose = sum(keys: noseKeys),
-              let strap = sum(keys: strapKeys),
-              let topCheek = sum(keys: topCheekKeys),
-              let midCheek = sum(keys: midCheekKeys),
-              let chin = sum(keys: chinKeys) else {
-            return nil
-        }
-
-        return [
-            "nose_mm": nose,
-            "strap_mm": strap,
-            "top_cheek_mm": topCheek,
-            "mid_cheek_mm": midCheek,
-            "chin_mm": chin
-        ]
+        guard let averages = exported["average_measurements"] as? [String: [String: Any]] else { return nil }
+        let values = averages.compactMapValues { ($0["value"] as? NSNumber)?.doubleValue }
+        return FacialAggregates.aggregate(millimeters: values)
     }
 
     // MARK: - Data Save

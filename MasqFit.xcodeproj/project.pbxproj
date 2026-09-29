@@ -27,6 +27,12 @@
 		DA8F03682EEFC7EE00D87464 /* ManagedUserTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA8F03672EEFC7EE00D87464 /* ManagedUserTableViewCell.swift */; };
 		DA8F036A2EF05BB100D87464 /* AddEditUserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA8F03692EF05BB100D87464 /* AddEditUserViewController.swift */; };
 		DAB35A0B2EF7ADDA00591682 /* AccountViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB35A0A2EF7ADDA00591682 /* AccountViewController.swift */; };
+		AD0000000000000000000000 /* AnonymousFlowViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000000; };
+		AD0000000000000000000001 /* AnonymousQueueViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000001; };
+		AD0000000000000000000002 /* AnonymousSubmissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000002; };
+		AD0000000000000000000003 /* FacialAggregates.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000003; };
+		AD0000000000000000000004 /* MFTCImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000004; };
+		AD0000000000000000000005 /* QRScannerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000005; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -51,6 +57,12 @@
 		DA8F03672EEFC7EE00D87464 /* ManagedUserTableViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedUserTableViewCell.swift; sourceTree = "<group>"; };
 		DA8F03692EF05BB100D87464 /* AddEditUserViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEditUserViewController.swift; sourceTree = "<group>"; };
 		DAB35A0A2EF7ADDA00591682 /* AccountViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountViewController.swift; sourceTree = "<group>"; };
+		AC0000000000000000000000 /* AnonymousFlowViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnonymousFlowViewController.swift; sourceTree = "<group>"; };
+		AC0000000000000000000001 /* AnonymousQueueViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnonymousQueueViewController.swift; sourceTree = "<group>"; };
+		AC0000000000000000000002 /* AnonymousSubmissionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnonymousSubmissionStore.swift; sourceTree = "<group>"; };
+		AC0000000000000000000003 /* FacialAggregates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacialAggregates.swift; sourceTree = "<group>"; };
+		AC0000000000000000000004 /* MFTCImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFTCImport.swift; sourceTree = "<group>"; };
+		AC0000000000000000000005 /* QRScannerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +90,7 @@
 				DA5555432E823E8700757129 /* Services */,
 				A1234567890123456789012B /* AppDelegate.swift */,
 				A1234567890123456789012D /* SceneDelegate.swift */,
+				AE0000000000000000000001 /* Anonymous */,
 				A1234567890123456789016A /* Controllers */,
 				A1234567890123456789016B /* Models */,
 				A1234567890123456789016C /* Views */,
@@ -148,6 +161,7 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
+		AE0000000000000000000001 = {isa = PBXGroup; children = (AC0000000000000000000000, AC0000000000000000000001, AC0000000000000000000002, AC0000000000000000000003, AC0000000000000000000004, AC0000000000000000000005,); path = Anonymous; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -219,6 +233,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AD0000000000000000000000,
+				AD0000000000000000000001,
+				AD0000000000000000000002,
+				AD0000000000000000000003,
+				AD0000000000000000000004,
+				AD0000000000000000000005,
+
 				DA5555492E823EA800757129 /* LoginViewController.swift in Sources */,
 				DA8F03682EEFC7EE00D87464 /* ManagedUserTableViewCell.swift in Sources */,
 				DA55554A2E823EB800757129 /* AboutViewController.swift in Sources */,

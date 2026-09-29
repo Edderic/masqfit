@@ -615,6 +615,24 @@ class LoginViewController: UIViewController {
     }
 
     @objc private func contributeDataButtonTapped() {
+        let choices = UIAlertController(title: "Contribute data", message: nil, preferredStyle: .actionSheet)
+        choices.addAction(UIAlertAction(title: "Measure only", style: .default) { [weak self] _ in self?.openAnonymousFlow(.measureOnly) })
+        choices.addAction(UIAlertAction(title: "Contribute anonymously", style: .default) { [weak self] _ in self?.openAnonymousFlow(.contribute) })
+        choices.addAction(UIAlertAction(title: "Use an account", style: .default) { [weak self] _ in self?.openAccountContribution() })
+        choices.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        choices.popoverPresentationController?.sourceView = contributeDataButton
+        choices.popoverPresentationController?.sourceRect = contributeDataButton.bounds
+        present(choices, animated: true)
+    }
+
+    private func openAnonymousFlow(_ mode: AnonymousFlowViewController.Mode) {
+        let controller = AnonymousFlowViewController(mode: mode)
+        let nav = UINavigationController(rootViewController: controller)
+        nav.modalPresentationStyle = .fullScreen
+        present(nav, animated: true)
+    }
+
+    private func openAccountContribution() {
         // If user is already authenticated, show the authenticated state
         // Otherwise, show the login form
         if authService.isAuthenticated {
